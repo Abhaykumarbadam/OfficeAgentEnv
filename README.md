@@ -1,4 +1,4 @@
-# ExecAssistEnv 🤖📧
+# ExecAssistEnv
 
 > **An OpenEnv-compliant real-world environment where an AI agent acts as an executive assistant — processing emails, scheduling meetings, replying to queries, and filtering spam.**
 
@@ -51,9 +51,9 @@ This models real tasks performed by millions of workers daily, making it a high-
 
 | Task | Difficulty | Max Steps | Description | Success Threshold |
 |---|---|---|---|---|
-| `easy` | 🟢 Easy | 10 | Classify 5 deterministic emails | 0.6 |
-| `medium` | 🟡 Medium | 15 | Classify + schedule meetings from mixed inbox | 0.5 |
-| `hard` | 🔴 Hard | 20 | Full workflow: classify, reply, schedule, ignore spam | 0.4 |
+| `easy` | Easy | 10 | Classify 5 deterministic emails | 0.6 |
+| `medium` | Medium | 15 | Classify + schedule meetings from mixed inbox | 0.5 |
+| `hard` | Hard | 20 | Full workflow: classify, reply, schedule, ignore spam | 0.4 |
 
 ---
 
