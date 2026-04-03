@@ -1,9 +1,11 @@
-name: ExecAssistEnv
+name: OfficeAgentEnv
+author: "OfficeAgentEnv Team"
 version: "1.0.0"
+
 description: >
-  A real-world AI environment simulating an executive assistant workflow.
-  An agent processes an email inbox — classifying emails, scheduling meetings,
-  replying to queries, and ignoring spam — under time and conflict constraints.
+  A real-world AI environment simulating an office assistant workflow.
+  The agent processes an email inbox by classifying emails, scheduling meetings,
+  replying to queries, and ignoring spam under time and conflict constraints.
 
 tags:
   - openenv
@@ -12,8 +14,6 @@ tags:
   - productivity
   - nlp
   - multi-step
-
-author: "ExecAssistEnv Team"
 
 tasks:
   - name: easy
@@ -36,73 +36,82 @@ tasks:
 
 action_space:
   type: object
-  description: "Structured action with action_type + email_id + optional fields"
-  fields:
+  properties:
     action_type:
-      type: enum
-      values: [classify_email, reply_email, schedule_meeting, ignore_email]
+      type: string
+      enum: [classify_email, reply_email, schedule_meeting, ignore_email]
+
     email_id:
       type: string
+
     category:
-      type: enum
-      values: [meeting_request, urgent_task, spam, general_query, unknown]
-      required: false
+      type: string
+      enum: [meeting_request, urgent_task, spam, general_query, unknown]
+
     reply_text:
       type: string
-      required: false
+
     meeting_title:
       type: string
-      required: false
+
     meeting_start_time:
       type: string
-      format: "YYYY-MM-DD HH:MM"
-      required: false
+
     meeting_end_time:
       type: string
-      format: "YYYY-MM-DD HH:MM"
-      required: false
+
     participants:
       type: array
-      items: string
-      required: false
+      items:
+        type: string
+
+  required:
+    - action_type
+    - email_id
 
 observation_space:
   type: object
-  description: "Current inbox state + calendar + last action result"
-  fields:
+  properties:
     pending_emails:
       type: array
-      description: "Emails not yet acted on"
+      items:
+        type: object
+
     processed_emails:
       type: array
-      description: "Emails already acted on"
+      items:
+        type: object
+
     calendar_events:
       type: array
-      description: "Currently scheduled calendar events"
+      items:
+        type: object
+
     last_action_result:
       type: string
+
     current_step:
       type: integer
+
     task_name:
       type: string
 
 reward:
   type: float
-  range: [-0.30, 0.30]
   description: >
-    Shaped reward signal:
+    Dense reward signal encouraging correct multi-step behavior:
     +0.30 correct classification
-    +0.30 conflict-free meeting scheduled
-    +0.20 good quality reply
-    +0.10 spam correctly ignored
-    -0.20 wrong classification
+    +0.30 conflict-free meeting scheduling
+    +0.20 relevant reply
+    +0.10 correct spam ignore
+    -0.20 incorrect classification
     -0.25 scheduling conflict
-    -0.15 important email ignored
-    -0.01 per-step cost
+    -0.15 ignoring important email
+    -0.01 step penalty
 
 endpoints:
   reset: "POST /reset"
   step:  "POST /step"
-  state: "GET  /state"
-  tasks: "GET  /tasks"
+  state: "GET /state"
+  tasks: "GET /tasks"
   grade: "POST /grade"

@@ -1,5 +1,5 @@
 """
-inference.py — ExecAssistEnv Baseline Inference Script
+inference.py — OfficeAgentEnv Baseline Inference Script
 """
 from __future__ import annotations
 
@@ -9,14 +9,18 @@ import textwrap
 from typing import Any, Dict, List, Optional
 
 import httpx
+from dotenv import load_dotenv
 from openai import OpenAI
 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
+
+load_dotenv()
+
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 
-BENCHMARK = "execassistenv"
+BENCHMARK = "officeagentenv"
 MAX_STEPS = {"easy": 10, "medium": 15, "hard": 20}
 SUCCESS_THRESHOLD = 0.4
 TASKS = ["easy", "medium", "hard"]
@@ -124,30 +128,78 @@ Choose your next action (raw JSON only):
     ).strip()
 
 
+def get_model_message(client: OpenAI, messages: List[Dict[str, str]], *, max_tokens: int = 300, temperature: float = 0.2) -> str:
+    """Call the chat model with a single retry and concise error logging.
+
+    Raises RuntimeError if both attempts fail.
+    """
+    last_exc: Optional[Exception] = None
+    for attempt in range(2):
+        try:
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False,
+            )
+            text = (completion.choices[0].message.content or "").strip()
+            if not text:
+                raise ValueError("Model returned empty content.")
+            return text
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            msg = str(exc)
+            if "<!DOCTYPE html" in msg or "<html" in msg.lower():
+                msg = (
+                    "HTTP error from LLM backend (for example 401 Unauthorized). "
+                    "Check HF_TOKEN or OPENAI_API_KEY permissions."
+                )
+            else:
+                msg = msg[:200]
+            print(f"[DEBUG] LLM call error (attempt {attempt + 1}/2): {msg}", flush=True)
+
+    raise RuntimeError(f"LLM call failed after 2 attempts: {last_exc}")
+
+
+def infer_category_from_email(email: Dict[str, Any]) -> str:
+    """Heuristic category assignment used when the LLM is unavailable."""
+    subject = str(email.get("subject", ""))
+    body = str(email.get("body", ""))
+    text = f"{subject} {body}".lower()
+
+    if "meeting" in text or "schedule" in text or "calendar" in text:
+        return "meeting_request"
+    if "urgent" in text or "asap" in text or "immediately" in text:
+        return "urgent_task"
+    if "offer" in text or "win" in text or "gift card" in text or "inheritance" in text or "prize" in text:
+        return "spam"
+    return "general_query"
+
+
 def get_action(client: OpenAI, obs: Dict[str, Any], step: int) -> Dict[str, Any]:
     prompt = build_user_prompt(obs, step)
     try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
+        text = get_model_message(
+            client,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.2,
             max_tokens=300,
-            stream=False,
         )
-        text = (completion.choices[0].message.content or "").strip()
         text = text.replace("```json", "").replace("```", "").strip()
         return json.loads(text)
-    except Exception as exc:
-        print(f"[DEBUG] LLM error: {exc}", flush=True)
+    except Exception:
+        print("[DEBUG] Falling back to heuristic action due to LLM failure.", flush=True)
         pending = obs.get("pending_emails", [])
         if pending:
+            email = pending[0]
             return {
                 "action_type": "classify_email",
-                "email_id": pending[0]["email_id"],
-                "category": "general_query",
+                "email_id": email["email_id"],
+                "category": infer_category_from_email(email),
             }
         return {"action_type": "ignore_email", "email_id": "e001"}
 
@@ -202,6 +254,13 @@ def run_task(client: OpenAI, task: str) -> None:
 
 
 def main() -> None:
+    if not API_KEY:
+        raise ValueError("Missing API key. Set HF_TOKEN or OPENAI_API_KEY.")
+
+    print(f"[DEBUG] API key loaded: {'yes' if API_KEY else 'no'}", flush=True)
+    print(f"[DEBUG] API_BASE_URL={API_BASE_URL}", flush=True)
+    print(f"[DEBUG] MODEL_NAME={MODEL_NAME}", flush=True)
+
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     for task in TASKS:
         run_task(client, task)

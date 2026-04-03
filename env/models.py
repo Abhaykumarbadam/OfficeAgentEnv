@@ -1,4 +1,4 @@
-"""Core Pydantic models and enums for ExecAssistEnv."""
+"""Core Pydantic models and enums for OfficeAgentEnv."""
 
 from __future__ import annotations
 from typing import Any, Dict, List, Optional

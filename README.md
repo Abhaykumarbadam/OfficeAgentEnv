@@ -1,4 +1,4 @@
-# ExecAssistEnv
+# OfficeAgentEnv
 
 > **An OpenEnv-compliant real-world environment where an AI agent acts as an executive assistant — processing emails, scheduling meetings, replying to queries, and filtering spam.**
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-ExecAssistEnv simulates the daily workflow of a corporate executive assistant.
+OfficeAgentEnv simulates the daily workflow of a corporate executive assistant.
 The agent receives an inbox of mixed emails and must intelligently decide for each one:
 - **Classify** it (meeting request / urgent task / spam / general query)
 - **Reply** with a relevant response
@@ -93,8 +93,8 @@ python inference.py
 ### Docker
 
 ```bash
-docker build -t execassistenv .
-docker run -p 7860:7860 execassistenv
+docker build -t officeagentenv .
+docker run -p 7860:7860 officeagentenv
 ```
 
 ### API Endpoints
@@ -122,7 +122,7 @@ docker run -p 7860:7860 execassistenv
 ## Project Structure
 
 ```
-execassistenv/
+OfficeAgentEnv/
 ├── inference.py          # Baseline inference script
 ├── openenv.yaml          # OpenEnv spec
 ├── Dockerfile

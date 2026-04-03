@@ -1,6 +1,6 @@
 """
 environment.py
-Core OpenEnv-compliant environment for ExecAssistEnv.
+Core OpenEnv-compliant environment for OfficeAgentEnv.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from env.models import (
 # Reward constants
 # ---------------------------------------------------------------------------
 
+# Core dense rewards
 R_CORRECT_CLASSIFY   =  0.30
 R_WRONG_CLASSIFY     = -0.20
 R_GOOD_REPLY         =  0.20
@@ -33,7 +34,17 @@ R_SCHEDULE_OK        =  0.30
 R_SCHEDULE_CONFLICT  = -0.25
 R_IGNORE_SPAM        =  0.10
 R_IGNORE_IMPORTANT   = -0.15
-R_STEP_PENALTY       = -0.01   # small cost per step to discourage stalling
+
+# Per-step penalty encourages shorter solutions
+R_STEP_PENALTY       = -0.02
+
+# Additional nuanced penalties / bonuses
+R_INVALID_EMAIL      = -0.10   # invalid email id
+R_DUPLICATE_ACTION   = -0.10   # acting again on an already processed email
+R_OUT_OF_HOURS       = -0.20   # meeting outside working hours
+R_TOO_SHORT_MEETING  = -0.10   # meeting shorter than 15 minutes
+R_LOW_QUALITY_REPLY  = -0.10   # reply text is too short / uninformative
+R_BONUS_COMPLETE     =  0.20   # bonus for fully clearing the inbox
 
 MAX_STEPS: Dict[str, int] = {
     "easy":   10,
@@ -55,7 +66,12 @@ def _parse_dt(s: str) -> Optional[datetime]:
     return None
 
 
-def _has_conflict(events: List[CalendarEvent], start: str, end: str) -> bool:
+def check_schedule_conflict(events: List[CalendarEvent], start: str, end: str) -> bool:
+    """Return True if the interval [start, end] overlaps any existing event.
+
+    This mirrors the grader's notion of a scheduling conflict and is used
+    both for reward shaping and for hard-task evaluation.
+    """
     new_start = _parse_dt(start)
     new_end   = _parse_dt(end)
     if new_start is None or new_end is None:
@@ -74,7 +90,7 @@ def _reply_quality(reply_text: str, email: Email) -> float:
     Heuristic: reward is higher for longer, relevant replies.
     Returns a multiplier in [0, 1].
     """
-    if not reply_text or len(reply_text.strip()) < 10:
+    if not is_valid_reply(reply_text):
         return 0.0
     score = min(len(reply_text) / 200, 1.0)  # length up to 200 chars → 1.0
     # Bonus if reply references sender name or subject keywords
@@ -82,6 +98,47 @@ def _reply_quality(reply_text: str, email: Email) -> float:
     hits = sum(1 for kw in keywords if kw in reply_text.lower())
     score = min(score + hits * 0.05, 1.0)
     return score
+
+
+def is_valid_reply(reply_text: str) -> bool:
+    """Basic check that a reply is non-trivial.
+
+    Used to penalize very short or empty replies. The threshold is chosen
+    to align with the reward spec (low-quality reply < 15 chars).
+    """
+
+    if not reply_text:
+        return False
+    return len(reply_text.strip()) >= 15
+
+
+def classify_intent(email: Email) -> Dict[str, bool]:
+    """Derive simple intent flags from the email category.
+
+    These flags are redundant with EmailCategory but make it easier for
+    agents to reason about the inbox when surfaced in explanations.
+    """
+
+    is_meeting_request = email.category == EmailCategory.MEETING_REQUEST
+    is_spam = email.category == EmailCategory.SPAM
+    is_urgent = email.category == EmailCategory.URGENT_TASK
+    requires_reply = email.category == EmailCategory.GENERAL_QUERY
+    return {
+        "is_meeting_request": is_meeting_request,
+        "is_spam": is_spam,
+        "is_urgent": is_urgent,
+        "requires_reply": requires_reply,
+    }
+
+
+def _within_working_hours(start: datetime, end: datetime) -> bool:
+    """Check that a meeting is within standard working hours (09:00–18:00)."""
+
+    if start.date() != end.date():
+        return False
+    if start.hour < 9 or end.hour > 18:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +198,16 @@ class ExecAssistEnv:
 
         self._step_count += 1
         reward, result_msg = self._apply_action(action)
+
+        # Per-step shaping penalty
         reward += R_STEP_PENALTY
+
+        # Bonus for fully and (approximately) correctly clearing the inbox.
+        # We award this when the inbox becomes empty as a result of this step.
+        if not self._pending:
+            reward += R_BONUS_COMPLETE
+            result_msg += " All emails processed; completion bonus applied."
+
         self._total_reward += reward
         self._last_result = result_msg
 
@@ -178,8 +244,18 @@ class ExecAssistEnv:
 
     def _apply_action(self, action: ExecAssistAction) -> Tuple[float, str]:
         email = self._find_email(action.email_id)
+
+        # Distinguish between invalid ids and duplicate processing attempts.
         if email is None:
-            return (-0.05, f"Email '{action.email_id}' not found in pending inbox.")
+            if any(e.email_id == action.email_id for e in self._processed):
+                return (
+                    R_DUPLICATE_ACTION,
+                    f"Email '{action.email_id}' was already processed; duplicate action penalized.",
+                )
+            return (
+                R_INVALID_EMAIL,
+                f"Email '{action.email_id}' not found in pending inbox.",
+            )
 
         if action.action_type == ActionType.CLASSIFY_EMAIL:
             return self._do_classify(email, action)
@@ -215,15 +291,23 @@ class ExecAssistEnv:
 
     def _do_reply(self, email: Email, action: ExecAssistAction) -> Tuple[float, str]:
         if not action.reply_text:
-            return (R_BAD_REPLY, "reply_email requires non-empty 'reply_text'.")
+            return (R_LOW_QUALITY_REPLY, "reply_email requires non-empty 'reply_text'.")
 
         quality = _reply_quality(action.reply_text, email)
-        reward  = R_GOOD_REPLY * quality if quality > 0.2 else R_BAD_REPLY
+        if quality <= 0.2:
+            reward = R_LOW_QUALITY_REPLY
+            msg_detail = "low-quality reply (too short or generic)."
+        else:
+            reward = R_GOOD_REPLY * quality
+            msg_detail = "reply accepted."
 
         email.processed = True
         self._move_to_processed(email)
 
-        return (reward, f"Replied to '{email.email_id}' (quality={quality:.2f}).")
+        return (
+            reward,
+            f"Replied to '{email.email_id}' (quality={quality:.2f}, {msg_detail})",
+        )
 
     def _do_schedule(self, email: Email, action: ExecAssistAction) -> Tuple[float, str]:
         start = action.meeting_start_time
@@ -233,7 +317,26 @@ class ExecAssistEnv:
         if not start or not end:
             return (-0.10, "schedule_meeting requires 'meeting_start_time' and 'meeting_end_time'.")
 
-        if _has_conflict(self._calendar, start, end):
+        parsed_start = _parse_dt(start)
+        parsed_end = _parse_dt(end)
+        if not parsed_start or not parsed_end:
+            return (-0.10, "Invalid datetime format for meeting_start_time or meeting_end_time.")
+
+        # Enforce working hours (09:00–18:00)
+        if not _within_working_hours(parsed_start, parsed_end):
+            return (
+                R_OUT_OF_HOURS,
+                "Requested meeting time is outside working hours (09:00–18:00).",
+            )
+
+        # Enforce minimum duration of 15 minutes
+        if (parsed_end - parsed_start).total_seconds() < 15 * 60:
+            return (
+                R_TOO_SHORT_MEETING,
+                "Requested meeting is shorter than 15 minutes.",
+            )
+
+        if check_schedule_conflict(self._calendar, start, end):
             return (R_SCHEDULE_CONFLICT, f"Scheduling conflict for '{start}' – '{end}'.")
 
         new_event = CalendarEvent(
@@ -250,13 +353,16 @@ class ExecAssistEnv:
         return (R_SCHEDULE_OK, f"Meeting '{title}' scheduled at {start}.")
 
     def _do_ignore(self, email: Email) -> Tuple[float, str]:
-        is_spam = email.category == EmailCategory.SPAM
+        intents = classify_intent(email)
+        is_spam = intents["is_spam"]
         reward  = R_IGNORE_SPAM if is_spam else R_IGNORE_IMPORTANT
 
         email.processed = True
         self._move_to_processed(email)
-
-        msg = "Correctly ignored spam." if is_spam else f"Ignored important email '{email.email_id}'!"
+        if is_spam:
+            msg = "Correctly ignored spam email '{email.email_id}'."
+        else:
+            msg = f"Ignored important email '{email.email_id}' (may hurt your score)."
         return (reward, msg)
 
     # ------------------------------------------------------------------

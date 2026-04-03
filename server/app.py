@@ -28,8 +28,8 @@ import graders.task_hard   as grader_hard
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="ExecAssistEnv",
-    description="OpenEnv-compliant Executive Assistant environment.",
+    title="OfficeAgentEnv",
+    description="OpenEnv-compliant executive assistant environment.",
     version="1.0.0",
 )
 
@@ -79,7 +79,7 @@ class GradeRequest(BaseModel):
 
 @app.get("/")
 def root() -> Dict[str, str]:
-    return {"status": "ok", "env": "ExecAssistEnv", "version": "1.0.0"}
+    return {"status": "ok", "env": "OfficeAgentEnv", "version": "1.0.0"}
 
 
 @app.post("/reset")

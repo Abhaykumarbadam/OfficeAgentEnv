@@ -114,6 +114,84 @@ _RANDOM_POOL: List[dict] = [
     },
 ]
 
+
+# ---------------------------------------------------------------------------
+# Additional hard-task emails (always included for "hard")
+# ---------------------------------------------------------------------------
+
+HARD_EXTRA_EMAILS: List[dict] = [
+    {
+        "email_id": "h001",
+        "sender": "carol@corp.com",
+        "subject": "Can we find some time tomorrow afternoon?",
+        "body": (
+            "Hi, I'd like to sync on the Q3 hiring plan sometime tomorrow "
+            "afternoon, maybe between 2pm and 5pm. Whatever works best for you."
+        ),
+        "timestamp": "2024-07-01 09:30",
+        "category": EmailCategory.MEETING_REQUEST,
+    },
+    {
+        "email_id": "h002",
+        "sender": "events@marketinghub.io",
+        "subject": "Exclusive leadership webinar this week",
+        "body": (
+            "Join our free leadership webinar with industry experts. "
+            "Reserve your spot now and unlock special software discounts."
+        ),
+        "timestamp": "2024-07-01 09:35",
+        "category": EmailCategory.SPAM,
+    },
+    {
+        "email_id": "h003",
+        "sender": "frank@corp.com",
+        "subject": "Follow-up on customer escalation + quick sync",
+        "body": (
+            "Customer ACME escalated a P1 incident yesterday. "
+            "Can you summarize the status for me and also grab 30 minutes "
+            "later today so we can walk through next steps?"
+        ),
+        "timestamp": "2024-07-01 09:40",
+        "category": EmailCategory.URGENT_TASK,
+    },
+    {
+        "email_id": "h004",
+        "sender": "sarah@client.com",
+        "subject": "Quarterly review meeting + billing question",
+        "body": (
+            "I'd like to schedule our quarterly account review sometime next "
+            "week and I also have a question about an unexpected line item on "
+            "the last invoice. When could we meet, and who should I contact "
+            "about billing?"
+        ),
+        "timestamp": "2024-07-01 09:45",
+        "category": EmailCategory.MEETING_REQUEST,
+    },
+    {
+        "email_id": "h005",
+        "sender": "newsletter@randomoffers.biz",
+        "subject": "Important update to your account",
+        "body": (
+            "We noticed unusual activity on your account. Click this link "
+            "to secure your profile and claim a complimentary security scan."
+        ),
+        "timestamp": "2024-07-01 09:50",
+        "category": EmailCategory.SPAM,
+    },
+    {
+        "email_id": "h006",
+        "sender": "support@prospect.com",
+        "subject": "Two quick questions about pricing and a demo",
+        "body": (
+            "Hi, we're evaluating your product. Could you clarify whether the "
+            "enterprise plan includes SSO and also let me know if we can get "
+            "a 45-minute demo sometime early next week?"
+        ),
+        "timestamp": "2024-07-01 09:55",
+        "category": EmailCategory.GENERAL_QUERY,
+    },
+]
+
 # ---------------------------------------------------------------------------
 # Base calendar events (always present)
 # ---------------------------------------------------------------------------
@@ -174,8 +252,16 @@ def get_emails_for_task(task_name: str, seed: int | None = None) -> List[Email]:
     """
     base = build_base_emails()
     if task_name == "easy":
+        # 5 fully deterministic base emails
         return base
     elif task_name == "medium":
+        # base + 2 deterministic random emails
         return base + build_random_emails(n=2, seed=seed)
     else:  # hard
-        return base + build_random_emails(n=5, seed=seed)
+        # Hard task: rich, mixed inbox.
+        # - base emails (5)
+        # - additional complex hard emails (6)
+        # - random augmentation (5) for variety, seeded for determinism
+        hard_extras = [Email(**e) for e in HARD_EXTRA_EMAILS]
+        random_emails = build_random_emails(n=5, seed=seed)
+        return base + hard_extras + random_emails
