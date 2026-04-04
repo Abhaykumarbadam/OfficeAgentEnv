@@ -158,3 +158,17 @@ def grade(req: GradeRequest = GradeRequest()) -> Dict[str, Any]:
         "score": score,
         "state": env.state(),
     }
+
+
+def main() -> None:
+    """CLI entrypoint required by OpenEnv validation for server launch."""
+
+    import uvicorn
+
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "7860"))
+    uvicorn.run("server.app:app", host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

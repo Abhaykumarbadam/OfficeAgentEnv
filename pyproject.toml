@@ -1,0 +1,38 @@
+[project]
+name = "officeagentenv"
+version = "0.1.0"
+description = "OfficeAgentEnv: an OpenEnv-compatible office assistant environment"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111.0",
+  "uvicorn[standard]>=0.29.0",
+  "pydantic>=2.7.1",
+  "openai>=1.30.1",
+  "pyyaml>=6.0.1",
+  "httpx>=0.27.0",
+  "python-dotenv>=1.0.1",
+  "openenv-core>=0.2.0",
+]
+
+[project.scripts]
+server = "server.app:main"
+
+[project.optional-dependencies]
+# This section is informational; Docker/requirements.txt remain the source of truth.
+openenv = [
+  "fastapi",
+  "uvicorn",
+  "httpx",
+  "pydantic",
+  "python-dotenv",
+]
+
+[tool.openenv]
+# These settings help openenv-core understand this repo structure.
+name = "OfficeAgentEnv"
+entrypoint_module = "server.app"
+entrypoint_app_attr = "app"
+
+# Environment class used for tasks (easy, medium, hard)
+env_module = "env.environment"
+env_class = "ExecAssistEnv"
