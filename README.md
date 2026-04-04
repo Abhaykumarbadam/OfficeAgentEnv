@@ -1,3 +1,12 @@
+---
+title: OfficeAgentEnv
+emoji: 📧
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # OfficeAgentEnv
 
 > **An OpenEnv-compliant real-world environment where an AI agent acts as an executive assistant — processing emails, scheduling meetings, replying to queries, and filtering spam.**
