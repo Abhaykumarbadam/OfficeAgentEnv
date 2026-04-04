@@ -66,11 +66,13 @@ _active_obs: ExecAssistObservation | None = None
 
 class ResetRequest(BaseModel):
     task: str = "easy"
+    task_name: str | None = None
     seed: int = 42
 
 
 class GradeRequest(BaseModel):
     task: str = "easy"
+    task_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -83,15 +85,20 @@ def root() -> Dict[str, str]:
 
 
 @app.post("/reset")
-def reset(req: ResetRequest = ResetRequest()) -> Dict[str, Any]:
+def reset(req: ResetRequest | None = None) -> Dict[str, Any]:
     global _active_task, _active_obs
 
-    if req.task not in ENVS:
-        raise HTTPException(status_code=400, detail=f"Unknown task '{req.task}'. Choose from: {list(ENVS)}")
+    if req is None:
+        req = ResetRequest()
 
-    _active_task = req.task
-    ENVS[req.task] = ExecAssistEnv(task_name=req.task, seed=req.seed)
-    obs = ENVS[req.task].reset()
+    requested_task = req.task_name or req.task
+
+    if requested_task not in ENVS:
+        raise HTTPException(status_code=400, detail=f"Unknown task '{requested_task}'. Choose from: {list(ENVS)}")
+
+    _active_task = requested_task
+    ENVS[requested_task] = ExecAssistEnv(task_name=requested_task, seed=req.seed)
+    obs = ENVS[requested_task].reset()
     _active_obs = obs
     return {"observation": obs.model_dump(), "done": False, "reward": 0.0, "info": {}}
 
@@ -144,17 +151,21 @@ def list_tasks() -> Dict[str, Any]:
 
 
 @app.post("/grade")
-def grade(req: GradeRequest = GradeRequest()) -> Dict[str, Any]:
-    env = ENVS.get(req.task)
+def grade(req: GradeRequest | None = None) -> Dict[str, Any]:
+    if req is None:
+        req = GradeRequest()
+
+    requested_task = req.task_name or req.task
+    env = ENVS.get(requested_task)
     if env is None:
-        raise HTTPException(status_code=400, detail=f"Unknown task '{req.task}'.")
+        raise HTTPException(status_code=400, detail=f"Unknown task '{requested_task}'.")
 
     obs = env._make_obs()  # get current obs without stepping
-    grader = GRADERS[req.task]
+    grader = GRADERS[requested_task]
     score = grader(obs)
 
     return {
-        "task":  req.task,
+        "task":  requested_task,
         "score": score,
         "state": env.state(),
     }
