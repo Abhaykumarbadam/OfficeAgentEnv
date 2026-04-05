@@ -9,6 +9,7 @@ python_version: "3.11"
 app_file: app.py
 app_port: 7860
 pinned: false
+tags: [openenv, office, email, scheduling]
 ---
 
 # OfficeAgentEnv
@@ -86,6 +87,13 @@ This models real tasks performed by millions of workers daily, making it a high-
 ---
 
 ## Setup & Usage
+
+### Environment variables
+
+- `HF_TOKEN` (or `OPENAI_API_KEY`): Hugging Face / OpenAI API key (required).
+- `API_BASE_URL`: LLM API endpoint, e.g. `https://router.huggingface.co/v1` (required).
+- `MODEL_NAME`: Model identifier, e.g. `Qwen/Qwen2.5-72B-Instruct` (required).
+- `ENV_URL`: Base URL of the environment HTTP server (optional, defaults to `http://localhost:7860`).
 
 ### Local
 
