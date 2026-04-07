@@ -67,7 +67,7 @@ This models real tasks performed by millions of workers daily, making it a high-
 |---|---|---|---|---|
 | `easy` | Easy | 10 | Classify 5 deterministic emails | 0.6 |
 | `medium` | Medium | 15 | Classify + schedule meetings from mixed inbox | 0.5 |
-| `hard` | Hard | 20 | Full workflow: classify, reply, schedule, ignore spam | 0.4 |
+| `hard` | Hard | 12 | Full workflow: classify, reply, schedule, ignore spam | 0.4 |
 
 ---
 
@@ -82,7 +82,7 @@ This models real tasks performed by millions of workers daily, making it a high-
 | Wrong classification | -0.20 |
 | Scheduling conflict | -0.25 |
 | Important email ignored | -0.15 |
-| Per-step cost | -0.01 |
+| Per-step cost | -0.02 |
 
 ---
 

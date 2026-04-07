@@ -1,87 +1,71 @@
-"""Strict grader for the HARD task in OfficeAgentEnv.
+"""Strict behavior-aware HARD grader.
 
-Base score is a weighted combination of:
-
-  - classification_accuracy (40%)
-  - scheduling_accuracy    (25%)
-  - reply_quality          (20%)
-  - inbox_completion       (10%)
-  - penalty_component      (5%)
-
-After the base score is computed, strict penalties and caps are applied:
-
-  1. Any meeting_request email not scheduled   -> subtract 0.30
-  2. Any required reply missing                -> subtract 0.20
-  3. Any urgent_task email left unprocessed    -> subtract 0.25
-  4. If < 80% of emails processed              -> multiply score by 0.5
-  5. If 2 or more of (1)-(3) occur             -> cap score at 0.60
-
-The final score is clamped to [0.0, 1.0].
-
-This design makes the HARD task clearly differentiate weak vs strong agents
-while remaining deterministic and based solely on the final environment state.
+Design goals:
+- Score quality across the full hard inbox (including random emails).
+- Reward correct intent-to-action mapping, not just task completion.
+- Penalize critical mistakes (e.g., ignoring urgent or mishandling spam).
+- Keep deterministic final score in [0.0, 1.0].
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable, List, Tuple
+import math
+from typing import Dict, Iterable, List
 
 from env.models import EmailCategory, ExecAssistObservation
 from graders.task_easy import GROUND_TRUTH
 
+HARD_GROUND_TRUTH: Dict[str, EmailCategory] = {
+    "h001": EmailCategory.MEETING_REQUEST,
+    "h002": EmailCategory.SPAM,
+    "h003": EmailCategory.URGENT_TASK,
+    "h004": EmailCategory.MEETING_REQUEST,
+    "h005": EmailCategory.SPAM,
+    "h006": EmailCategory.GENERAL_QUERY,
+}
+
+ALL_KNOWN_TRUTH: Dict[str, EmailCategory] = {**GROUND_TRUTH, **HARD_GROUND_TRUTH}
+
 
 def _collect_all_emails(obs: ExecAssistObservation) -> List:
-    """Return a deduplicated list of all emails by email_id."""
+    """Return deduplicated emails by email_id."""
 
     by_id = {e.email_id: e for e in (obs.processed_emails + obs.pending_emails)}
     return list(by_id.values())
 
 
-def _email_is_meeting_request(email) -> bool:
-    gt = GROUND_TRUTH.get(email.email_id)
-    if gt is not None:
-        return gt == EmailCategory.MEETING_REQUEST
-    return email.category == EmailCategory.MEETING_REQUEST
+def _infer_expected_category(email) -> EmailCategory:
+    """Deterministic category inference for emails not in fixed truth maps."""
+
+    mapped = ALL_KNOWN_TRUTH.get(email.email_id)
+    if mapped is not None:
+        return mapped
+
+    text = f"{email.subject} {email.body}".lower()
+    if any(k in text for k in ["urgent", "critical", "outage", "p1", "immediate", "asap"]):
+        return EmailCategory.URGENT_TASK
+    if any(k in text for k in ["meeting", "schedule", "calendar", "sync", "demo", "review"]):
+        return EmailCategory.MEETING_REQUEST
+    if any(k in text for k in ["gift card", "discount", "offer", "prize", "inheritance", "verify account"]):
+        return EmailCategory.SPAM
+    return EmailCategory.GENERAL_QUERY
 
 
-def _email_requires_reply(email) -> bool:
-    gt = GROUND_TRUTH.get(email.email_id)
-    if gt is not None:
-        return gt == EmailCategory.GENERAL_QUERY
-    return email.category == EmailCategory.GENERAL_QUERY
+def _expected_resolution_for_category(category: EmailCategory) -> str:
+    if category == EmailCategory.MEETING_REQUEST:
+        return "schedule"
+    if category == EmailCategory.SPAM:
+        return "ignore"
+    if category == EmailCategory.GENERAL_QUERY:
+        return "reply"
+    # urgent tasks are typically triaged via classify
+    return "classify"
 
 
-def _email_is_urgent(email) -> bool:
-    gt = GROUND_TRUTH.get(email.email_id)
-    if gt is not None:
-        return gt == EmailCategory.URGENT_TASK
-    return email.category == EmailCategory.URGENT_TASK
-
-
-def _titles_for_calendar_events(obs: ExecAssistObservation) -> List[str]:
-    return [ev.title.lower() for ev in obs.calendar_events]
-
-
-def _subject_matches_title(subject: str, title: str) -> bool:
-    """Heuristic: an overlap between subject keywords and the event title."""
-
-    subject_words = {w for w in subject.lower().split() if w}
-    if not subject_words:
-        return False
-    title_l = title.lower()
-    return any(word in title_l for word in subject_words)
-
-
-def _count_scheduling_conflicts(obs: ExecAssistObservation) -> int:
-    """Count calendar events that overlap in time.
-
-    Each conflicting *pair* contributes one to the conflict count.
-    """
-
+def _count_conflicts(obs: ExecAssistObservation) -> int:
     events = obs.calendar_events
-    n = len(events)
-    if n <= 1:
+    if len(events) <= 1:
         return 0
 
     def parse_dt(s: str) -> datetime | None:
@@ -93,16 +77,14 @@ def _count_scheduling_conflicts(obs: ExecAssistObservation) -> int:
         return None
 
     conflicts = 0
-    for i in range(n):
-        a = events[i]
-        a_start = parse_dt(a.start_time)
-        a_end = parse_dt(a.end_time)
+    for i in range(len(events)):
+        a_start = parse_dt(events[i].start_time)
+        a_end = parse_dt(events[i].end_time)
         if not (a_start and a_end):
             continue
-        for j in range(i + 1, n):
-            b = events[j]
-            b_start = parse_dt(b.start_time)
-            b_end = parse_dt(b.end_time)
+        for j in range(i + 1, len(events)):
+            b_start = parse_dt(events[j].start_time)
+            b_end = parse_dt(events[j].end_time)
             if not (b_start and b_end):
                 continue
             if a_start < b_end and a_end > b_start:
@@ -111,144 +93,144 @@ def _count_scheduling_conflicts(obs: ExecAssistObservation) -> int:
 
 
 def compute_classification_score(emails: Iterable) -> float:
-    """Accuracy of classifications against ground-truth labels.
-
-    Only emails with ids present in GROUND_TRUTH are counted.
-    """
-
     correct = 0
     total = 0
     for email in emails:
-        gt = GROUND_TRUTH.get(email.email_id)
-        if gt is None:
-            continue
         total += 1
-        if email.category == gt:
+        gt = _infer_expected_category(email)
+        # Classification credit is awarded only for explicit classify action.
+        if email.resolution == "classify" and email.category == gt:
             correct += 1
     return (correct / total) if total else 0.0
 
 
-def compute_scheduling_score(emails: Iterable, obs: ExecAssistObservation) -> Tuple[float, int, int]:
-    """Score meeting scheduling quality.
-
-    Returns (schedule_score, missing_meeting_count, conflict_count).
-    """
-
+def _action_accuracy(emails: Iterable) -> float:
     all_emails = list(emails)
-    titles = _titles_for_calendar_events(obs)
-
-    meeting_emails = [e for e in all_emails if _email_is_meeting_request(e)]
-    if not meeting_emails:
-        schedule_score = 1.0
-        missing_meetings = 0
-    else:
-        scheduled_ids = set()
-        for em in meeting_emails:
-            if any(_subject_matches_title(em.subject, t) for t in titles):
-                scheduled_ids.add(em.email_id)
-        scheduled_count = len(scheduled_ids)
-        missing_meetings = len(meeting_emails) - scheduled_count
-        schedule_score = scheduled_count / len(meeting_emails)
-
-    conflicts = _count_scheduling_conflicts(obs)
-    return schedule_score, missing_meetings, conflicts
+    if not all_emails:
+        return 0.0
+    score = 0.0
+    for e in all_emails:
+        expected_category = _infer_expected_category(e)
+        expected_resolution = _expected_resolution_for_category(expected_category)
+        if e.resolution == expected_resolution:
+            score += 1.0
+        elif e.resolution == "classify":
+            # Partial credit for correct triage even when not final execution action.
+            score += 0.6
+        elif e.resolution in {"reply", "schedule", "ignore"}:
+            score += 0.2
+    return score / len(all_emails)
 
 
-def compute_reply_score(emails: Iterable) -> Tuple[float, int]:
-    """Score whether emails that require a reply were processed at all.
+def _resolved_ratio(emails: Iterable) -> float:
+    all_emails = list(emails)
+    if not all_emails:
+        return 0.0
+    resolved = sum(1 for e in all_emails if e.resolution in {"classify", "reply", "schedule", "ignore"})
+    return resolved / len(all_emails)
 
-    Since reply_text is not available here, we treat a processed email of the
-    appropriate type as an attempted reply.
-    Returns (score, missing_reply_count).
-    """
 
-    reply_needed = [e for e in emails if _email_requires_reply(e)]
-    if not reply_needed:
-        return 1.0, 0
-
-    replied = [e for e in reply_needed if e.processed]
-    missing = len(reply_needed) - len(replied)
-
-    score = len(replied) / len(reply_needed)
-    return score, missing
+def _category_resolution_accuracy(emails: Iterable, category: EmailCategory, expected_resolution: str) -> float:
+    targets = [e for e in emails if _infer_expected_category(e) == category]
+    if not targets:
+        return 1.0
+    ok = sum(1 for e in targets if e.resolution == expected_resolution)
+    return ok / len(targets)
 
 
 def grade(obs: ExecAssistObservation) -> float:
-    """Main grading entrypoint for the HARD task.
-
-    Computes a weighted base score and then applies strict penalties and caps
-    as described in the module docstring.
-    """
-
     all_emails = _collect_all_emails(obs)
     total_emails = len(all_emails)
     if total_emails == 0:
         return 0.0
 
-    processed_ids = {e.email_id for e in obs.processed_emails}
-
-    # 1. Core component scores
+    processed_ratio = len(obs.processed_emails) / total_emails
+    resolved_ratio = _resolved_ratio(all_emails)
     classification_accuracy = compute_classification_score(all_emails)
-    scheduling_accuracy, missing_meetings, conflict_count = compute_scheduling_score(all_emails, obs)
-    reply_quality, missing_replies = compute_reply_score(all_emails)
-    inbox_completion = len(obs.processed_emails) / total_emails
+    action_accuracy = _action_accuracy(all_emails)
+    classify_coverage = sum(1 for e in all_emails if e.resolution == "classify") / total_emails
+    conflict_count = _count_conflicts(obs)
+    conflict_score = max(0.0, 1.0 - min(conflict_count * 0.25, 1.0))
+    meeting_acc = _category_resolution_accuracy(all_emails, EmailCategory.MEETING_REQUEST, "schedule")
+    query_acc = _category_resolution_accuracy(all_emails, EmailCategory.GENERAL_QUERY, "reply")
+    spam_acc = _category_resolution_accuracy(all_emails, EmailCategory.SPAM, "ignore")
+    urgent_acc = _category_resolution_accuracy(all_emails, EmailCategory.URGENT_TASK, "classify")
 
-    # 2. Penalty component used in the 5% "penalties" weight
-    important_pending = 0
-    for e in all_emails:
-        gt = GROUND_TRUTH.get(e.email_id, e.category)
-        if gt in (EmailCategory.MEETING_REQUEST, EmailCategory.URGENT_TASK) and e.email_id not in processed_ids:
-            important_pending += 1
+    # Bottleneck term: low performance on any intent category should strongly
+    # limit hard-task scores. Geometric mean is stricter than arithmetic mean.
+    category_balance = (meeting_acc * query_acc * spam_acc * urgent_acc) ** 0.25
 
-    penalty_sum = (
-        0.15 * important_pending
-        + 0.20 * conflict_count
-        + 0.15 * missing_meetings
-        + 0.10 * missing_replies
-    )
-    penalty_component = max(0.0, 1.0 - min(1.0, penalty_sum))
-
-    # 3. Weighted base score (no hard penalties yet)
-    base_score = (
-        0.40 * classification_accuracy
-        + 0.25 * scheduling_accuracy
-        + 0.20 * reply_quality
-        + 0.10 * inbox_completion
-        + 0.05 * penalty_component
+    # Base score emphasizes decision quality and coverage.
+    score = (
+        0.30 * action_accuracy
+        + 0.20 * classification_accuracy
+        + 0.05 * classify_coverage
+        + 0.20 * resolved_ratio
+        + 0.10 * conflict_score
+        + 0.15 * category_balance
     )
 
-    score = base_score
+    # Critical-behavior penalties.
+    mis_handled_urgent = sum(
+        1
+        for e in all_emails
+        if _infer_expected_category(e) == EmailCategory.URGENT_TASK and e.resolution == "ignore"
+    )
+    spam_not_ignored = sum(
+        1
+        for e in all_emails
+        if _infer_expected_category(e) == EmailCategory.SPAM and e.resolution != "ignore"
+    )
+    meetings_not_scheduled = sum(
+        1
+        for e in all_emails
+        if _infer_expected_category(e) == EmailCategory.MEETING_REQUEST and e.resolution != "schedule"
+    )
+    queries_not_replied = sum(
+        1
+        for e in all_emails
+        if _infer_expected_category(e) == EmailCategory.GENERAL_QUERY and e.resolution != "reply"
+    )
 
-    # ------------------------------------------------------------------
-    # Post-score strict penalties and caps
-    # ------------------------------------------------------------------
+    score -= min(mis_handled_urgent * 0.12, 0.24)
+    score -= min(spam_not_ignored * 0.03, 0.09)
+    score -= min(meetings_not_scheduled * 0.04, 0.12)
+    score -= min(queries_not_replied * 0.03, 0.09)
 
-    critical_failures = 0
+    unresolved_count = sum(1 for e in all_emails if e.resolution not in {"classify", "reply", "schedule", "ignore"})
+    score -= min(unresolved_count * 0.02, 0.16)
 
-    # 1. Any meeting_request email not scheduled -> subtract 0.30
-    if missing_meetings > 0:
-        score -= 0.30
-        critical_failures += 1
+    # Distribution penalties: hard task expects mixed workflow behavior,
+    # not over-reliance on a single action.
+    expected_meetings = sum(1 for e in all_emails if _infer_expected_category(e) == EmailCategory.MEETING_REQUEST)
+    expected_replies = sum(1 for e in all_emails if _infer_expected_category(e) == EmailCategory.GENERAL_QUERY)
+    expected_spam = sum(1 for e in all_emails if _infer_expected_category(e) == EmailCategory.SPAM)
+    expected_urgent = sum(1 for e in all_emails if _infer_expected_category(e) == EmailCategory.URGENT_TASK)
 
-    # 2. Any required reply missing -> subtract 0.20
-    if missing_replies > 0:
-        score -= 0.20
-        critical_failures += 1
+    actual_schedule = sum(1 for e in all_emails if e.resolution == "schedule")
+    actual_reply = sum(1 for e in all_emails if e.resolution == "reply")
+    actual_ignore = sum(1 for e in all_emails if e.resolution == "ignore")
+    actual_classify = sum(1 for e in all_emails if e.resolution == "classify")
 
-    # 3. Any urgent_task email left unprocessed -> subtract 0.25
-    urgent_pending = [e for e in all_emails if _email_is_urgent(e) and not e.processed]
-    if urgent_pending:
-        score -= 0.25
-        critical_failures += 1
+    # Penalize deficits relative to expected intent buckets.
+    def _deficit(actual: int, expected: int) -> float:
+        if expected <= 0:
+            return 0.0
+        return max(0.0, (expected - actual) / expected)
 
-    # 4. If < 80% of emails processed -> multiply score by 0.5
-    if inbox_completion < 0.8:
-        score *= 0.5
+    score -= 0.05 * _deficit(actual_schedule, expected_meetings)
+    score -= 0.04 * _deficit(actual_reply, expected_replies)
+    score -= 0.03 * _deficit(actual_ignore, expected_spam)
+    score -= 0.03 * _deficit(actual_classify, expected_urgent)
 
-    # 5. If 2 or more critical failures -> cap score at 0.60
-    if critical_failures >= 2:
-        score = min(score, 0.60)
+    # Penalize classify-heavy trajectories that avoid concrete workflow actions.
+    classify_ratio = actual_classify / total_emails
+    if classify_ratio > 0.70:
+        score -= min((classify_ratio - 0.70) * 0.20, 0.06)
 
-    # Final clamp to [0.0, 1.0]
+    # Continuous difficulty scaling by completion and balanced intent handling.
+    completion_factor = max(0.0, min(1.0, resolved_ratio))
+    score *= (0.85 + 0.15 * completion_factor) * (0.85 + 0.15 * category_balance)
+
     score = max(0.0, min(1.0, score))
     return round(score, 4)

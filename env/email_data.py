@@ -20,40 +20,40 @@ BASE_EMAILS: List[dict] = [
     {
         "email_id": "e001",
         "sender": "alice@corp.com",
-        "subject": "Can we meet Thursday at 3pm?",
-        "body": "Hi, I'd like to schedule a 30-minute sync on Thursday at 3pm to discuss Q3 roadmap. Does that work for you?",
+        "subject": "Request: 30-minute roadmap alignment this Thursday",
+        "body": "Hi team, could we schedule a 30-minute alignment on Thursday at 3:00 PM to review Q3 roadmap dependencies and owners? Please confirm availability.",
         "timestamp": "2024-07-01 09:00",
         "category": EmailCategory.MEETING_REQUEST,
     },
     {
         "email_id": "e002",
         "sender": "bob@spam.net",
-        "subject": "You've WON a $1000 gift card!!!",
-        "body": "Congratulations! Click here to claim your prize. Limited time offer!",
+        "subject": "Congratulations! Claim your $1000 gift card now",
+        "body": "You have been selected for an exclusive reward. Click the secure link to claim your gift card before the offer expires.",
         "timestamp": "2024-07-01 09:05",
         "category": EmailCategory.SPAM,
     },
     {
         "email_id": "e003",
         "sender": "ceo@corp.com",
-        "subject": "URGENT: Server down in production",
-        "body": "The main production server is returning 500 errors. We need this fixed within the hour. All hands on deck.",
+        "subject": "URGENT: Production API outage impacting customers",
+        "body": "The production API is returning HTTP 500 errors for multiple enterprise accounts. Please initiate incident response immediately and share an ETA within 30 minutes.",
         "timestamp": "2024-07-01 09:10",
         "category": EmailCategory.URGENT_TASK,
     },
     {
         "email_id": "e004",
         "sender": "diana@partner.org",
-        "subject": "Question about the API integration",
-        "body": "Hello, I was wondering if your API supports OAuth 2.0 for authentication? Could you point me to the documentation?",
+        "subject": "Question: OAuth 2.0 support in partner API",
+        "body": "Hello, can you confirm whether your partner API supports OAuth 2.0 client credentials flow and share the relevant integration documentation?",
         "timestamp": "2024-07-01 09:15",
         "category": EmailCategory.GENERAL_QUERY,
     },
     {
         "email_id": "e005",
         "sender": "hr@corp.com",
-        "subject": "Team standup moved to 10am",
-        "body": "Just a heads up — tomorrow's standup has been moved from 9am to 10am due to a conflict. Please update your calendars.",
+        "subject": "Schedule update: Engineering standup moved to 10:00 AM",
+        "body": "Please note tomorrow's engineering standup is moved from 9:00 AM to 10:00 AM due to a cross-functional planning conflict. Kindly update your calendars.",
         "timestamp": "2024-07-01 09:20",
         "category": EmailCategory.MEETING_REQUEST,
     },
@@ -66,26 +66,26 @@ BASE_EMAILS: List[dict] = [
 _RANDOM_POOL: List[dict] = [
     {
         "sender": "mark@sales.com",
-        "subject": "Quick call this week?",
-        "body": "Hey, are you free for a 15-minute call on Friday afternoon to go over the sales pipeline?",
+        "subject": "Request: 15-minute sales pipeline review",
+        "body": "Could we schedule a 15-minute call on Friday afternoon to review regional pipeline status and next-quarter forecasts?",
         "category": EmailCategory.MEETING_REQUEST,
     },
     {
         "sender": "promo@deals.io",
-        "subject": "50% off today only!",
-        "body": "Flash sale! Don't miss out on our biggest deal of the year. Click now before it's gone.",
+        "subject": "Limited-time software discount offer",
+        "body": "Exclusive flash discount available today only. Activate your offer through this link before midnight.",
         "category": EmailCategory.SPAM,
     },
     {
         "sender": "ops@corp.com",
-        "subject": "CRITICAL: Database backup failed",
-        "body": "The nightly database backup job failed at 2am. Immediate investigation required before business hours.",
+        "subject": "CRITICAL: Nightly database backup failure",
+        "body": "The 02:00 backup job failed for production databases. Please investigate immediately and provide remediation status before business hours.",
         "category": EmailCategory.URGENT_TASK,
     },
     {
         "sender": "support@client.com",
-        "subject": "How do I reset my password?",
-        "body": "Hi there, I forgot my password and the reset email doesn't seem to be arriving. Can you help?",
+        "subject": "Assistance needed: password reset email not received",
+        "body": "I attempted a password reset twice but did not receive any reset email. Could you help troubleshoot this issue?",
         "category": EmailCategory.GENERAL_QUERY,
     },
     {
@@ -123,10 +123,10 @@ HARD_EXTRA_EMAILS: List[dict] = [
     {
         "email_id": "h001",
         "sender": "carol@corp.com",
-        "subject": "Can we find some time tomorrow afternoon?",
+        "subject": "Request: hiring plan review tomorrow afternoon",
         "body": (
-            "Hi, I'd like to sync on the Q3 hiring plan sometime tomorrow "
-            "afternoon, maybe between 2pm and 5pm. Whatever works best for you."
+            "Hi, I would like to schedule a discussion on the Q3 hiring plan "
+            "tomorrow between 2:00 PM and 5:00 PM. A 30-minute slot works."
         ),
         "timestamp": "2024-07-01 09:30",
         "category": EmailCategory.MEETING_REQUEST,
@@ -134,10 +134,10 @@ HARD_EXTRA_EMAILS: List[dict] = [
     {
         "email_id": "h002",
         "sender": "events@marketinghub.io",
-        "subject": "Exclusive leadership webinar this week",
+        "subject": "Exclusive leadership webinar invitation",
         "body": (
-            "Join our free leadership webinar with industry experts. "
-            "Reserve your spot now and unlock special software discounts."
+            "Join our leadership webinar and unlock premium software discounts. "
+            "Reserve your seat today using the promotional registration link."
         ),
         "timestamp": "2024-07-01 09:35",
         "category": EmailCategory.SPAM,
@@ -145,11 +145,10 @@ HARD_EXTRA_EMAILS: List[dict] = [
     {
         "email_id": "h003",
         "sender": "frank@corp.com",
-        "subject": "Follow-up on customer escalation + quick sync",
+        "subject": "P1 escalation follow-up and incident sync",
         "body": (
-            "Customer ACME escalated a P1 incident yesterday. "
-            "Can you summarize the status for me and also grab 30 minutes "
-            "later today so we can walk through next steps?"
+            "Customer ACME has escalated a P1 incident. Please provide a status "
+            "summary and coordinate a 30-minute sync today to finalize mitigation steps."
         ),
         "timestamp": "2024-07-01 09:40",
         "category": EmailCategory.URGENT_TASK,
@@ -157,12 +156,11 @@ HARD_EXTRA_EMAILS: List[dict] = [
     {
         "email_id": "h004",
         "sender": "sarah@client.com",
-        "subject": "Quarterly review meeting + billing question",
+        "subject": "Quarterly business review scheduling and billing clarification",
         "body": (
-            "I'd like to schedule our quarterly account review sometime next "
-            "week and I also have a question about an unexpected line item on "
-            "the last invoice. When could we meet, and who should I contact "
-            "about billing?"
+            "We would like to schedule a quarterly business review next week. "
+            "Additionally, there is an unexpected line item on our latest invoice. "
+            "Please advise available meeting windows and billing point of contact."
         ),
         "timestamp": "2024-07-01 09:45",
         "category": EmailCategory.MEETING_REQUEST,
@@ -170,10 +168,10 @@ HARD_EXTRA_EMAILS: List[dict] = [
     {
         "email_id": "h005",
         "sender": "newsletter@randomoffers.biz",
-        "subject": "Important update to your account",
+        "subject": "Security notice: verify your account access",
         "body": (
-            "We noticed unusual activity on your account. Click this link "
-            "to secure your profile and claim a complimentary security scan."
+            "We detected unusual account activity. Verify credentials immediately "
+            "through this external link and claim a complimentary security scan."
         ),
         "timestamp": "2024-07-01 09:50",
         "category": EmailCategory.SPAM,
@@ -181,14 +179,68 @@ HARD_EXTRA_EMAILS: List[dict] = [
     {
         "email_id": "h006",
         "sender": "support@prospect.com",
-        "subject": "Two quick questions about pricing and a demo",
+        "subject": "Enterprise pricing question and demo request",
         "body": (
-            "Hi, we're evaluating your product. Could you clarify whether the "
-            "enterprise plan includes SSO and also let me know if we can get "
-            "a 45-minute demo sometime early next week?"
+            "We are evaluating your platform. Does the enterprise tier include "
+            "SSO and audit logs, and can we schedule a 45-minute demo early next week?"
         ),
         "timestamp": "2024-07-01 09:55",
         "category": EmailCategory.GENERAL_QUERY,
+    },
+    {
+        "email_id": "h007",
+        "sender": "legal@partnerco.com",
+        "subject": "Request: contract review call before signature",
+        "body": (
+            "Could we schedule a 30-minute call tomorrow to review final MSA redlines "
+            "before legal sign-off? Please share available windows."
+        ),
+        "timestamp": "2024-07-01 10:00",
+        "category": EmailCategory.MEETING_REQUEST,
+    },
+    {
+        "email_id": "h008",
+        "sender": "security@corp.com",
+        "subject": "CRITICAL: Suspicious login activity detected",
+        "body": (
+            "Multiple suspicious login attempts were detected on privileged accounts. "
+            "Please initiate containment and confirm response actions immediately."
+        ),
+        "timestamp": "2024-07-01 10:05",
+        "category": EmailCategory.URGENT_TASK,
+    },
+    {
+        "email_id": "h009",
+        "sender": "procurement@vendorhub.net",
+        "subject": "Invoice discrepancy clarification needed",
+        "body": (
+            "We found a discrepancy in PO-7742 billing totals. Could you confirm the "
+            "approved amount and the expected payment timeline?"
+        ),
+        "timestamp": "2024-07-01 10:10",
+        "category": EmailCategory.GENERAL_QUERY,
+    },
+    {
+        "email_id": "h010",
+        "sender": "offers@globaldeals-mail.com",
+        "subject": "Action required: unlock premium account benefits",
+        "body": (
+            "Your organization is eligible for premium account benefits. Verify your "
+            "details using this external form to activate rewards."
+        ),
+        "timestamp": "2024-07-01 10:15",
+        "category": EmailCategory.SPAM,
+    },
+    {
+        "email_id": "h011",
+        "sender": "pm@corp.com",
+        "subject": "Planning session for launch readiness",
+        "body": (
+            "Can we book a 45-minute planning session this week to finalize launch "
+            "readiness checklist owners and deadlines?"
+        ),
+        "timestamp": "2024-07-01 10:20",
+        "category": EmailCategory.MEETING_REQUEST,
     },
 ]
 
@@ -260,8 +312,10 @@ def get_emails_for_task(task_name: str, seed: int | None = None) -> List[Email]:
     else:  # hard
         # Hard task: rich, mixed inbox.
         # - base emails (5)
-        # - additional complex hard emails (6)
-        # - random augmentation (5) for variety, seeded for determinism
-        hard_extras = [Email(**e) for e in HARD_EXTRA_EMAILS]
-        random_emails = build_random_emails(n=5, seed=seed)
+        # - deterministic sample of complex hard emails (4)
+        # - random augmentation (2) for variety, seeded for determinism
+        rng = random.Random(seed)
+        sampled_hard = rng.sample(HARD_EXTRA_EMAILS, k=min(4, len(HARD_EXTRA_EMAILS)))
+        hard_extras = [Email(**e) for e in sampled_hard]
+        random_emails = build_random_emails(n=2, seed=seed)
         return base + hard_extras + random_emails

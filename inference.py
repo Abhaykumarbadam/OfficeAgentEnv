@@ -15,13 +15,13 @@ from openai import OpenAI
 
 load_dotenv()
 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+API_KEY = os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL")
+MODEL_NAME = os.getenv("MODEL_NAME")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 
 BENCHMARK = "officeagentenv"
-MAX_STEPS = {"easy": 10, "medium": 15, "hard": 20}
+MAX_STEPS = {"easy": 10, "medium": 15, "hard": 12}
 SUCCESS_THRESHOLD = 0.4
 TASKS = ["easy", "medium", "hard"]
 
@@ -128,7 +128,7 @@ Choose your next action (raw JSON only):
     ).strip()
 
 
-def get_model_message(client: OpenAI, messages: List[Dict[str, str]], *, max_tokens: int = 300, temperature: float = 0.2) -> str:
+def get_model_message(client: OpenAI, messages: List[Dict[str, str]], *, max_tokens: int = 300, temperature: float = 0.0) -> str:
     """Call the chat model with a single retry and concise error logging.
 
     Raises RuntimeError if both attempts fail.
@@ -142,6 +142,7 @@ def get_model_message(client: OpenAI, messages: List[Dict[str, str]], *, max_tok
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stream=False,
+                timeout=20,
             )
             text = (completion.choices[0].message.content or "").strip()
             if not text:
@@ -153,11 +154,12 @@ def get_model_message(client: OpenAI, messages: List[Dict[str, str]], *, max_tok
             if "<!DOCTYPE html" in msg or "<html" in msg.lower():
                 msg = (
                     "HTTP error from LLM backend (for example 401 Unauthorized). "
-                    "Check HF_TOKEN or OPENAI_API_KEY permissions."
+                    "Check HF_TOKEN permissions."
                 )
             else:
                 msg = msg[:200]
-            print(f"[DEBUG] LLM call error (attempt {attempt + 1}/2): {msg}", flush=True)
+            # Keep stdout strictly in [START]/[STEP]/[END] format.
+            _ = msg
 
     raise RuntimeError(f"LLM call failed after 2 attempts: {last_exc}")
 
@@ -186,13 +188,12 @@ def get_action(client: OpenAI, obs: Dict[str, Any], step: int) -> Dict[str, Any]
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.2,
+            temperature=0.0,
             max_tokens=300,
         )
         text = text.replace("```json", "").replace("```", "").strip()
         return json.loads(text)
     except Exception:
-        print("[DEBUG] Falling back to heuristic action due to LLM failure.", flush=True)
         pending = obs.get("pending_emails", [])
         if pending:
             email = pending[0]
@@ -246,8 +247,11 @@ def run_task(client: OpenAI, task: str) -> None:
         score = env_grade(task)
         success = score >= SUCCESS_THRESHOLD
 
+    except KeyboardInterrupt:
+        # Graceful interruption: still emit [END] in finally, without traceback.
+        log_step(step=0, action="task_interrupt", reward=0.0, done=True, error="keyboard_interrupt")
     except Exception as exc:
-        print(f"[DEBUG] Episode error: {exc}", flush=True)
+        log_step(step=0, action="task_init", reward=0.0, done=True, error=str(exc)[:200])
 
     finally:
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
@@ -255,15 +259,19 @@ def run_task(client: OpenAI, task: str) -> None:
 
 def main() -> None:
     if not API_KEY:
-        raise ValueError("Missing API key. Set HF_TOKEN or OPENAI_API_KEY.")
-
-    print(f"[DEBUG] API key loaded: {'yes' if API_KEY else 'no'}", flush=True)
-    print(f"[DEBUG] API_BASE_URL={API_BASE_URL}", flush=True)
-    print(f"[DEBUG] MODEL_NAME={MODEL_NAME}", flush=True)
+        raise ValueError("Missing required HF_TOKEN.")
+    if not API_BASE_URL:
+        raise ValueError("Missing required API_BASE_URL.")
+    if not MODEL_NAME:
+        raise ValueError("Missing required MODEL_NAME.")
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    for task in TASKS:
-        run_task(client, task)
+    try:
+        for task in TASKS:
+            run_task(client, task)
+    except KeyboardInterrupt:
+        # Graceful shutdown when user interrupts execution.
+        return
 
 
 if __name__ == "__main__":

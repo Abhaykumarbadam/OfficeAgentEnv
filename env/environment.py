@@ -49,7 +49,7 @@ R_BONUS_COMPLETE     =  0.20   # bonus for fully clearing the inbox
 MAX_STEPS: Dict[str, int] = {
     "easy":   10,
     "medium": 15,
-    "hard":   20,
+    "hard":   12,
 }
 
 
@@ -185,12 +185,12 @@ class ExecAssistEnv:
         self._total_reward = 0.0
         self._done       = False
         self._last_result = "Environment reset. Process your inbox."
-        return self._make_obs()
+        return self._make_obs_public()
 
     def step(self, action: ExecAssistAction) -> StepResult:
         if self._done:
             return StepResult(
-                observation=self._make_obs(),
+                observation=self._make_obs_public(),
                 reward=0.0,
                 done=True,
                 info={"warning": "Episode already finished."},
@@ -216,7 +216,7 @@ class ExecAssistEnv:
             self._done = True
 
         return StepResult(
-            observation=self._make_obs(),
+            observation=self._make_obs_public(),
             reward=round(reward, 4),
             done=self._done,
             info={
@@ -284,6 +284,7 @@ class ExecAssistEnv:
 
         email.category  = action.category   # agent's classification persists
         email.processed = True
+        email.resolution = "classify"
         self._move_to_processed(email)
 
         status = "CORRECT" if correct else "WRONG"
@@ -301,7 +302,10 @@ class ExecAssistEnv:
             reward = R_GOOD_REPLY * quality
             msg_detail = "reply accepted."
 
+        # Replying without explicit classification should not grant label credit.
+        email.category = EmailCategory.UNKNOWN
         email.processed = True
+        email.resolution = "reply"
         self._move_to_processed(email)
 
         return (
@@ -347,7 +351,10 @@ class ExecAssistEnv:
             participants=action.participants or [email.sender],
         )
         self._calendar.append(new_event)
+        # Scheduling without explicit classification should not grant label credit.
+        email.category = EmailCategory.UNKNOWN
         email.processed = True
+        email.resolution = "schedule"
         self._move_to_processed(email)
 
         return (R_SCHEDULE_OK, f"Meeting '{title}' scheduled at {start}.")
@@ -357,10 +364,13 @@ class ExecAssistEnv:
         is_spam = intents["is_spam"]
         reward  = R_IGNORE_SPAM if is_spam else R_IGNORE_IMPORTANT
 
+        # Ignoring without explicit classification should not grant label credit.
+        email.category = EmailCategory.UNKNOWN
         email.processed = True
+        email.resolution = "ignore"
         self._move_to_processed(email)
         if is_spam:
-            msg = "Correctly ignored spam email '{email.email_id}'."
+            msg = f"Correctly ignored spam email '{email.email_id}'."
         else:
             msg = f"Ignored important email '{email.email_id}' (may hurt your score)."
         return (reward, msg)
@@ -379,10 +389,34 @@ class ExecAssistEnv:
         self._pending   = [e for e in self._pending if e.email_id != email.email_id]
         self._processed.append(email)
 
-    def _make_obs(self) -> ExecAssistObservation:
+    def _make_obs_internal(self) -> ExecAssistObservation:
         return ExecAssistObservation(
             pending_emails=deepcopy(self._pending),
             processed_emails=deepcopy(self._processed),
+            calendar_events=deepcopy(self._calendar),
+            last_action_result=self._last_result,
+            current_step=self._step_count,
+            task_name=self.task_name,
+        )
+
+    def _make_obs_public(self) -> ExecAssistObservation:
+        """Build an observation safe for agent consumption.
+
+        Ground-truth labels are hidden by replacing category values with UNKNOWN.
+        This prevents reward/grader leakage via observation payloads.
+        """
+
+        pending = deepcopy(self._pending)
+        processed = deepcopy(self._processed)
+
+        for email in pending:
+            email.category = EmailCategory.UNKNOWN
+        for email in processed:
+            email.category = EmailCategory.UNKNOWN
+
+        return ExecAssistObservation(
+            pending_emails=pending,
+            processed_emails=processed,
             calendar_events=deepcopy(self._calendar),
             last_action_result=self._last_result,
             current_step=self._step_count,

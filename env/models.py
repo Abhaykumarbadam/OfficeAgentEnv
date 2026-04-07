@@ -37,6 +37,7 @@ class Email(BaseModel):
     timestamp:  str
     category:   EmailCategory = EmailCategory.UNKNOWN   # ground truth (hidden from agent)
     processed:  bool = False
+    resolution: Optional[str] = None  # classify|reply|schedule|ignore
 
 
 class CalendarEvent(BaseModel):

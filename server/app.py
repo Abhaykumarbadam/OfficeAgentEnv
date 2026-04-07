@@ -144,7 +144,7 @@ def list_tasks() -> Dict[str, Any]:
                 "name": "hard",
                 "description": "Full workflow: classify, reply, schedule, and ignore spam across a noisy inbox.",
                 "difficulty": "hard",
-                "max_steps": 20,
+                "max_steps": 12,
             },
         ]
     }
@@ -160,7 +160,7 @@ def grade(req: GradeRequest | None = None) -> Dict[str, Any]:
     if env is None:
         raise HTTPException(status_code=400, detail=f"Unknown task '{requested_task}'.")
 
-    obs = env._make_obs()  # get current obs without stepping
+    obs = env._make_obs_internal()  # internal state for deterministic grading
     grader = GRADERS[requested_task]
     score = grader(obs)
 

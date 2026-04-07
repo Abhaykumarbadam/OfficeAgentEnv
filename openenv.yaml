@@ -31,7 +31,7 @@ tasks:
   - name: hard
     description: "Full workflow automation: classify, reply, schedule, and ignore spam across a noisy inbox."
     difficulty: hard
-    max_steps: 20
+    max_steps: 12
     success_threshold: 0.4
 
 action_space:
@@ -107,7 +107,7 @@ reward:
     -0.20 incorrect classification
     -0.25 scheduling conflict
     -0.15 ignoring important email
-    -0.01 step penalty
+    -0.02 step penalty
 
 endpoints:
   reset: "POST /reset"
