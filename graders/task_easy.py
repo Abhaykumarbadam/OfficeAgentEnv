@@ -5,6 +5,8 @@ Score = fraction of emails correctly classified (0.0 – 1.0)
 from __future__ import annotations
 from env.models import EmailCategory, ExecAssistObservation
 
+from graders.scoring import strict_unit_interval
+
 
 GROUND_TRUTH = {
     "e001": EmailCategory.MEETING_REQUEST,
@@ -18,11 +20,11 @@ GROUND_TRUTH = {
 def grade(obs: ExecAssistObservation) -> float:
     """
     Checks processed emails against ground-truth labels.
-    Returns score in [0.0, 1.0].
+    Returns score strictly within (0, 1).
     """
     all_emails = obs.processed_emails + obs.pending_emails
     if not GROUND_TRUTH:
-        return 0.0
+        return strict_unit_interval(0.0)
 
     correct = 0
     total   = len(GROUND_TRUTH)
@@ -32,4 +34,4 @@ def grade(obs: ExecAssistObservation) -> float:
             if email.category == GROUND_TRUTH[email.email_id]:
                 correct += 1
 
-    return round(correct / total, 4)
+    return strict_unit_interval(correct / total)

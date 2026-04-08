@@ -15,6 +15,7 @@ from typing import Dict, Iterable, List
 
 from env.models import EmailCategory, ExecAssistObservation
 from graders.task_easy import GROUND_TRUTH
+from graders.scoring import strict_unit_interval
 
 HARD_GROUND_TRUTH: Dict[str, EmailCategory] = {
     "h001": EmailCategory.MEETING_REQUEST,
@@ -142,7 +143,7 @@ def grade(obs: ExecAssistObservation) -> float:
     all_emails = _collect_all_emails(obs)
     total_emails = len(all_emails)
     if total_emails == 0:
-        return 0.0
+        return strict_unit_interval(0.0)
 
     processed_ratio = len(obs.processed_emails) / total_emails
     resolved_ratio = _resolved_ratio(all_emails)
@@ -232,5 +233,4 @@ def grade(obs: ExecAssistObservation) -> float:
     completion_factor = max(0.0, min(1.0, resolved_ratio))
     score *= (0.85 + 0.15 * completion_factor) * (0.85 + 0.15 * category_balance)
 
-    score = max(0.0, min(1.0, score))
-    return round(score, 4)
+    return strict_unit_interval(score)

@@ -9,6 +9,8 @@ from __future__ import annotations
 from env.models import EmailCategory, ExecAssistObservation
 from graders.task_easy import GROUND_TRUTH, grade as easy_grade
 
+from graders.scoring import strict_unit_interval
+
 
 def grade(obs: ExecAssistObservation) -> float:
     # 1) Classification accuracy on deterministic base set.
@@ -47,4 +49,4 @@ def grade(obs: ExecAssistObservation) -> float:
         + 0.40 * schedule_score
         + 0.20 * ignore_score
     )
-    return round(max(0.0, min(score, 1.0)), 4)
+    return strict_unit_interval(score)

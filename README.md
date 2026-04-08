@@ -157,7 +157,8 @@ OfficeAgentEnv/
 ├── graders/
 │   ├── task_easy.py
 │   ├── task_medium.py
-│   └── task_hard.py
+│   ├── task_hard.py
+│   └── scoring.py       # Shared strict (0,1) score utility
 └── server/
     └── app.py            # FastAPI server
 ```
