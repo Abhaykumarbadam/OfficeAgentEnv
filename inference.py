@@ -15,11 +15,14 @@ from openai import OpenAI
 
 load_dotenv()
 
-API_KEY = os.getenv("HF_TOKEN")
+# Phase-2 validator injects API_KEY + API_BASE_URL for LiteLLM proxy usage.
+# Keep local fallbacks for developer runs.
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 DEFAULT_MODEL_NAME = "heuristic-fallback"
+DEFAULT_PROXY_MODEL_NAME = "Qwen/Qwen2.5-72B-Instruct"
 
 BENCHMARK = "officeagentenv"
 MAX_STEPS = {"easy": 10, "medium": 15, "hard": 12}
@@ -36,9 +39,18 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={err}", flush=True)
 
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+def _strict_score(value: float) -> float:
+    # Keep scores strictly in (0,1) even after formatting/parsing.
+    return max(0.0001, min(0.9999, float(value)))
+
+
+def log_end(task: str, success: bool, steps: int, score: float, rewards: List[float]) -> None:
     r_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={r_str}", flush=True)
+    safe_score = _strict_score(score)
+    print(
+        f"[END] task={task} success={str(success).lower()} steps={steps} score={safe_score:.4f} rewards={r_str}",
+        flush=True,
+    )
 
 
 def env_reset(task: str, seed: int = 42) -> Dict[str, Any]:
@@ -248,7 +260,7 @@ def run_task(client: Optional[OpenAI], task: str) -> None:
             if done:
                 break
 
-        score = env_grade(task)
+        score = _strict_score(env_grade(task))
         success = score >= SUCCESS_THRESHOLD
 
     except KeyboardInterrupt:
@@ -258,14 +270,19 @@ def run_task(client: Optional[OpenAI], task: str) -> None:
         log_step(step=0, action="task_init", reward=0.0, done=True, error=str(exc)[:200])
 
     finally:
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        log_end(task=task, success=success, steps=steps_taken, score=score, rewards=rewards)
 
 
 def main() -> None:
-    use_llm = bool(API_KEY and API_BASE_URL and MODEL_NAME)
+    model_name = MODEL_NAME or DEFAULT_PROXY_MODEL_NAME
+    use_llm = bool(API_KEY and API_BASE_URL)
     client: Optional[OpenAI] = None
     if use_llm:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+        # Use injected proxy vars when present; these are required by the validator.
+        resolved_api_key = os.environ["API_KEY"] if "API_KEY" in os.environ else API_KEY
+        resolved_base_url = os.environ["API_BASE_URL"] if "API_BASE_URL" in os.environ else API_BASE_URL
+        globals()["MODEL_NAME"] = model_name
+        client = OpenAI(base_url=resolved_base_url, api_key=resolved_api_key)
 
     try:
         for task in TASKS:
