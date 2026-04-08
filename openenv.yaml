@@ -16,23 +16,35 @@ tags:
   - multi-step
 
 tasks:
-  - name: easy
+  - id: easy
+    name: easy
     description: "Classify 5 deterministic emails into correct categories."
     difficulty: easy
     max_steps: 10
     success_threshold: 0.6
+    grader:
+      type: deterministic
+      endpoint: /grade
 
-  - name: medium
+  - id: medium
+    name: medium
     description: "Classify emails and schedule conflict-free meetings from a mixed inbox."
     difficulty: medium
     max_steps: 15
     success_threshold: 0.5
+    grader:
+      type: deterministic
+      endpoint: /grade
 
-  - name: hard
+  - id: hard
+    name: hard
     description: "Full workflow automation: classify, reply, schedule, and ignore spam across a noisy inbox."
     difficulty: hard
     max_steps: 12
     success_threshold: 0.4
+    grader:
+      type: deterministic
+      endpoint: /grade
 
 action_space:
   type: object
