@@ -9,7 +9,11 @@ FastAPI server exposing the OpenEnv HTTP interface:
 """
 from __future__ import annotations
 
+import html
+import importlib
 import os
+import re
+from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
@@ -60,6 +64,41 @@ GRADERS = {
 _active_task: str = "easy"
 _active_obs: ExecAssistObservation | None = None
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+README_PATH = PROJECT_ROOT / "README.md"
+
+
+def _strip_front_matter(text: str) -> str:
+    if text.startswith("---\n"):
+        parts = text.split("\n---\n", 1)
+        if len(parts) == 2:
+            return parts[1]
+    return text
+
+
+def _render_readme_to_html() -> str:
+    try:
+        readme_text = README_PATH.read_text(encoding="utf-8")
+        readme_text = _strip_front_matter(readme_text)
+    except Exception:
+        readme_text = "# OfficeAgentEnv\n\nREADME.md not found."
+
+    try:
+        md = importlib.import_module("markdown")
+
+        rendered = md.markdown(
+            readme_text,
+            extensions=["fenced_code", "tables", "toc", "sane_lists"],
+        )
+    except Exception:
+        # Fallback keeps content visible even if markdown package is unavailable.
+        escaped = html.escape(readme_text)
+        rendered = f"<pre>{escaped}</pre>"
+
+    # Force links in README to open safely in new tab.
+    rendered = re.sub(r"<a ", '<a target="_blank" rel="noopener noreferrer" ', rendered)
+    return rendered
+
 
 # ---------------------------------------------------------------------------
 # Request/Response schemas
@@ -82,7 +121,8 @@ class GradeRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 def root() -> str:
-        return """
+        readme_html = _render_readme_to_html()
+        return f"""
 <!doctype html>
 <html lang=\"en\">
 <head>
@@ -90,133 +130,157 @@ def root() -> str:
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
     <title>OfficeAgentEnv</title>
     <style>
-        :root {
-            --bg1: #f7fafc;
-            --bg2: #edf2f7;
+        :root {{
+            --bg: #f5f7fb;
+            --ink: #0f172a;
+            --muted: #475569;
+            --line: #e2e8f0;
             --card: #ffffff;
-            --text: #1a202c;
-            --muted: #4a5568;
-            --accent: #0b7285;
-            --accent-2: #0891b2;
-            --border: #e2e8f0;
-        }
-        * { box-sizing: border-box; }
-        body {
+            --brand: #0f766e;
+            --brand-soft: #ccfbf1;
+            --link: #0369a1;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{
             margin: 0;
-            font-family: \"Segoe UI\", Tahoma, Geneva, Verdana, sans-serif;
-            color: var(--text);
-            background: radial-gradient(circle at 20% 10%, #d9f3ff 0%, transparent 35%),
-                                    radial-gradient(circle at 80% 15%, #d7ffe6 0%, transparent 30%),
-                                    linear-gradient(180deg, var(--bg1), var(--bg2));
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            padding: 24px;
-        }
-        .card {
-            width: min(860px, 100%);
-            background: var(--card);
-            border: 1px solid var(--border);
+            color: var(--ink);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                radial-gradient(circle at 90% -20%, #dbeafe 0%, rgba(219, 234, 254, 0) 40%),
+                radial-gradient(circle at -10% 0%, #dcfce7 0%, rgba(220, 252, 231, 0) 32%),
+                var(--bg);
+        }}
+        .wrap {{
+            max-width: 980px;
+            margin: 28px auto;
+            padding: 0 16px 28px;
+        }}
+        .hero {{
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid var(--line);
             border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
-        }
-        h1 {
-            margin: 0 0 8px 0;
-            font-size: clamp(1.6rem, 2.6vw, 2.2rem);
-            letter-spacing: 0.2px;
-        }
-        p {
+            padding: 20px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+        }}
+        .hero h1 {{
             margin: 0;
+            font-size: clamp(1.5rem, 2.5vw, 2rem);
+        }}
+        .hero p {{
+            margin: 10px 0 0;
             color: var(--muted);
-            line-height: 1.55;
-        }
-        .status {
-            margin-top: 14px;
-            display: inline-flex;
-            align-items: center;
+            line-height: 1.6;
+        }}
+        .chips {{
+            display: flex;
+            flex-wrap: wrap;
             gap: 8px;
-            padding: 6px 12px;
+            margin-top: 14px;
+        }}
+        .chip {{
+            background: var(--brand-soft);
+            border: 1px solid #99f6e4;
+            color: #134e4a;
             border-radius: 999px;
-            background: #ecfeff;
-            color: #0f766e;
-            border: 1px solid #a5f3fc;
+            padding: 6px 10px;
+            font-size: 0.86rem;
             font-weight: 600;
-            font-size: 0.9rem;
-        }
-        .grid {
-            margin-top: 22px;
+        }}
+        .links {{
+            margin-top: 14px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-        }
-        a.tile {
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 10px;
+        }}
+        .links a {{
             text-decoration: none;
-            color: inherit;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px;
+            color: var(--ink);
             background: #fff;
-            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-        }
-        a.tile:hover {
-            transform: translateY(-2px);
-            border-color: #a5b4fc;
-            box-shadow: 0 10px 20px rgba(2, 6, 23, 0.08);
-        }
-        .tile-title {
-            color: var(--accent);
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-        .tile-text {
-            color: var(--muted);
-            font-size: 0.92rem;
-        }
-        code {
-            display: block;
-            margin-top: 18px;
-            border: 1px solid var(--border);
+            border: 1px solid var(--line);
             border-radius: 10px;
-            background: #f8fafc;
-            padding: 12px;
-            font-family: Consolas, \"Courier New\", monospace;
+            padding: 11px 12px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+        }}
+        .links a:hover {{
+            border-color: #93c5fd;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+        }}
+        .doc {{
+            margin-top: 16px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+            line-height: 1.72;
+        }}
+        .doc h1, .doc h2, .doc h3 {{
+            line-height: 1.3;
+            margin-top: 1.5em;
+            margin-bottom: 0.45em;
+            scroll-margin-top: 10px;
+        }}
+        .doc h1:first-child {{ margin-top: 0; }}
+        .doc p {{ color: #1e293b; }}
+        .doc a {{ color: var(--link); }}
+        .doc table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 18px;
+            font-size: 0.94rem;
+        }}
+        .doc th, .doc td {{
+            border: 1px solid var(--line);
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }}
+        .doc th {{ background: #f8fafc; }}
+        .doc pre {{
             overflow-x: auto;
-            white-space: pre;
-            color: #334155;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
             font-size: 0.9rem;
-        }
+        }}
+        .doc code {{
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.9em;
+        }}
+        .doc :not(pre) > code {{
+            background: #f1f5f9;
+            padding: 1px 6px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            color: #0f172a;
+        }}
+        @media (max-width: 640px) {{
+            .hero, .doc {{ padding: 16px; }}
+        }}
     </style>
 </head>
 <body>
-    <main class=\"card\">
-        <h1>OfficeAgentEnv</h1>
-        <p>OpenEnv-compatible executive assistant environment for reset, step, grading, and task evaluation.</p>
-        <div class=\"status\">Running · v1.0.0</div>
-
-        <section class=\"grid\">
-            <a class=\"tile\" href=\"/docs\" target=\"_blank\" rel=\"noopener noreferrer\">
-                <div class=\"tile-title\">API Docs</div>
-                <div class=\"tile-text\">Interactive Swagger UI for all endpoints.</div>
-            </a>
-            <a class=\"tile\" href=\"/openapi.json\" target=\"_blank\" rel=\"noopener noreferrer\">
-                <div class=\"tile-title\">OpenAPI Spec</div>
-                <div class=\"tile-text\">Machine-readable API contract in JSON.</div>
-            </a>
-            <a class=\"tile\" href=\"/tasks\" target=\"_blank\" rel=\"noopener noreferrer\">
-                <div class=\"tile-title\">Tasks</div>
-                <div class=\"tile-text\">Available benchmark tasks: easy, medium, hard.</div>
-            </a>
-            <a class=\"tile\" href=\"/state\" target=\"_blank\" rel=\"noopener noreferrer\">
-                <div class=\"tile-title\">State</div>
-                <div class=\"tile-text\">Inspect current environment state snapshot.</div>
-            </a>
-        </section>
-
-        <code>POST /reset  -> initialize task session
-POST /step   -> submit action and get reward
-POST /grade  -> compute task score</code>
-    </main>
+    <div class=\"wrap\">
+        <header class=\"hero\">
+            <h1>OfficeAgentEnv</h1>
+            <p>Professional environment demo with full project documentation rendered from README.md.</p>
+            <div class=\"chips\">
+                <span class=\"chip\">Running · v1.0.0</span>
+                <span class=\"chip\">OpenEnv Compatible</span>
+                <span class=\"chip\">FastAPI + Docker</span>
+            </div>
+            <div class=\"links\">
+                <a href=\"/docs\" target=\"_blank\" rel=\"noopener noreferrer\">Open API Docs</a>
+                <a href=\"/openapi.json\" target=\"_blank\" rel=\"noopener noreferrer\">OpenAPI JSON</a>
+                <a href=\"/tasks\" target=\"_blank\" rel=\"noopener noreferrer\">View Tasks</a>
+                <a href=\"/state\" target=\"_blank\" rel=\"noopener noreferrer\">View State</a>
+            </div>
+        </header>
+        <article class=\"doc\">{readme_html}</article>
+    </div>
 </body>
 </html>
 """
