@@ -128,159 +128,543 @@ def root() -> str:
 <head>
     <meta charset=\"UTF-8\" />
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
-    <title>OfficeAgentEnv</title>
+    <title>OfficeAgentEnv - AI Executive Assistant Benchmark</title>
     <style>
-        :root {{
-            --bg: #f5f7fb;
-            --ink: #0f172a;
-            --muted: #475569;
-            --line: #e2e8f0;
-            --card: #ffffff;
-            --brand: #0f766e;
-            --brand-soft: #ccfbf1;
-            --link: #0369a1;
-        }}
-        * {{ box-sizing: border-box; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        html {{ scroll-behavior: smooth; }}
         body {{
-            margin: 0;
-            color: var(--ink);
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background:
-                radial-gradient(circle at 90% -20%, #dbeafe 0%, rgba(219, 234, 254, 0) 40%),
-                radial-gradient(circle at -10% 0%, #dcfce7 0%, rgba(220, 252, 231, 0) 32%),
-                var(--bg);
+            font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1a1f35 50%, #16213e 100%);
+            color: #e0e0e0;
+            line-height: 1.6;
+            overflow-x: hidden;
         }}
-        .wrap {{
-            max-width: 980px;
-            margin: 28px auto;
-            padding: 0 16px 28px;
-        }}
+        .container {{ max-width: 1200px; margin: 0 auto; padding: 0 20px; }}
+        
+        /* HERO SECTION */
         .hero {{
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+            padding: 60px 20px;
+        }}
+        .hero::before {{
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15), transparent);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: float 6s ease-in-out infinite;
+        }}
+        .hero::after {{
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: -10%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.1), transparent);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: float 8s ease-in-out infinite reverse;
+        }}
+        .hero-content {{
+            position: relative;
+            z-index: 2;
+            max-width: 700px;
         }}
         .hero h1 {{
-            margin: 0;
-            font-size: clamp(1.5rem, 2.5vw, 2rem);
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #3b82f6, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }}
         .hero p {{
-            margin: 10px 0 0;
-            color: var(--muted);
-            line-height: 1.6;
+            font-size: 1.2rem;
+            color: #cbd5e1;
+            margin-bottom: 30px;
         }}
-        .chips {{
+        .badge-group {{
             display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 14px;
         }}
-        .chip {{
-            background: var(--brand-soft);
-            border: 1px solid #99f6e4;
-            color: #134e4a;
-            border-radius: 999px;
-            padding: 6px 10px;
-            font-size: 0.86rem;
+        .badge {{
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: #60a5fa;
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.9rem;
             font-weight: 600;
         }}
-        .links {{
-            margin-top: 14px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-            gap: 10px;
+        .cta-buttons {{
+            display: flex;
+            gap: 16px;
+            margin-top: 40px;
         }}
-        .links a {{
+        .btn {{
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
             text-decoration: none;
-            color: var(--ink);
-            background: #fff;
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 11px 12px;
+            display: inline-block;
+        }}
+        .btn-primary {{
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+        }}
+        .btn-primary:hover {{
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(59, 130, 246, 0.4);
+        }}
+        .btn-secondary {{
+            background: rgba(255, 255, 255, 0.1);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }}
+        .btn-secondary:hover {{
+            background: rgba(59, 130, 246, 0.15);
+            transform: translateY(-2px);
+        }}
+        
+        /* JUDGING CRITERIA SECTION */
+        .section {{
+            padding: 80px 20px;
+            position: relative;
+        }}
+        .section-title {{
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 50px;
+            text-align: center;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        .criteria-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 60px;
+        }}
+        .criteria-card {{
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }}
+        .criteria-card::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #60a5fa, transparent);
+        }}
+        .criteria-card:hover {{
+            border-color: rgba(59, 130, 246, 0.5);
+            transform: translateY(-8px);
+            box-shadow: 0 16px 40px rgba(59, 130, 246, 0.2);
+        }}
+        .criteria-label {{
+            font-size: 0.9rem;
+            color: #60a5fa;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }}
+        .criteria-card h3 {{
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #e0e0e0;
+        }}
+        .criteria-percentage {{
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+        }}
+        .criteria-card p {{
+            color: #a0aec0;
+            line-height: 1.8;
+        }}
+        
+        /* TASKS SECTION */
+        .tasks-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 60px;
+        }}
+        .task-card {{
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8));
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 28px;
+            transition: all 0.3s ease;
+        }}
+        .task-card:hover {{
+            border-color: rgba(139, 92, 246, 0.6);
+            transform: translateY(-6px);
+            box-shadow: 0 12px 32px rgba(139, 92, 246, 0.2);
+        }}
+        .task-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }}
+        .task-name {{
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: capitalize;
+        }}
+        .difficulty-badge {{
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
             font-weight: 600;
-            transition: all 0.15s ease;
         }}
-        .links a:hover {{
-            border-color: #93c5fd;
-            transform: translateY(-1px);
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+        .difficulty-easy {{ background: rgba(34, 197, 94, 0.2); color: #86efac; }}
+        .difficulty-medium {{ background: rgba(251, 146, 60, 0.2); color: #fdba74; }}
+        .difficulty-hard {{ background: rgba(239, 68, 68, 0.2); color: #fca5a5; }}
+        .task-stats {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 16px 0;
         }}
-        .doc {{
-            margin-top: 16px;
-            background: var(--card);
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            padding: 22px;
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
-            line-height: 1.72;
-        }}
-        .doc h1, .doc h2, .doc h3 {{
-            line-height: 1.3;
-            margin-top: 1.5em;
-            margin-bottom: 0.45em;
-            scroll-margin-top: 10px;
-        }}
-        .doc h1:first-child {{ margin-top: 0; }}
-        .doc p {{ color: #1e293b; }}
-        .doc a {{ color: var(--link); }}
-        .doc table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 12px 0 18px;
-            font-size: 0.94rem;
-        }}
-        .doc th, .doc td {{
-            border: 1px solid var(--line);
-            padding: 10px;
-            text-align: left;
-            vertical-align: top;
-        }}
-        .doc th {{ background: #f8fafc; }}
-        .doc pre {{
-            overflow-x: auto;
-            background: #0f172a;
-            color: #e2e8f0;
-            border-radius: 10px;
+        .stat {{
+            background: rgba(59, 130, 246, 0.1);
             padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }}
+        .stat-value {{
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #60a5fa;
+        }}
+        .stat-label {{
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .task-desc {{
+            color: #a0aec0;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 16px 0;
+        }}
+        
+        /* API ENDPOINTS SECTION */
+        .api-section {{
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 40px;
+        }}
+        .api-title {{
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: #e0e0e0;
+        }}
+        .endpoint {{
+            background: rgba(15, 23, 42, 0.8);
+            border-left: 3px solid #60a5fa;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }}
+        .endpoint-method {{
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            margin-right: 10px;
             font-size: 0.9rem;
         }}
-        .doc code {{
-            font-family: Consolas, "Courier New", monospace;
-            font-size: 0.9em;
+        .method-post {{ background: rgba(59, 130, 246, 0.3); color: #60a5fa; }}
+        .method-get {{ background: rgba(34, 197, 94, 0.3); color: #86efac; }}
+        .endpoint-path {{
+            color: #cbd5e1;
+            font-size: 0.95rem;
         }}
-        .doc :not(pre) > code {{
-            background: #f1f5f9;
-            padding: 1px 6px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-            color: #0f172a;
+        
+        /* ANIMATION */
+        @keyframes float {{
+            0%, 100% {{ transform: translateY(0px); }}
+            50% {{ transform: translateY(30px); }}
         }}
-        @media (max-width: 640px) {{
-            .hero, .doc {{ padding: 16px; }}
+        
+        /* DOCUMENTATION SECTION */
+        .doc-section {{
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 40px;
+            margin-top: 80px;
+            color: #a0aec0;
+        }}
+        .doc-section h2 {{
+            color: #60a5fa;
+            margin-top: 1.5em;
+            margin-bottom: 1em;
+        }}
+        .doc-section table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+            font-size: 0.95rem;
+        }}
+        .doc-section th, .doc-section td {{
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            padding: 12px;
+            text-align: left;
+        }}
+        .doc-section th {{
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+            font-weight: 700;
+        }}
+        .doc-section code {{
+            background: rgba(15, 23, 42, 0.8);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+        }}
+        .doc-section pre {{
+            background: rgba(15, 23, 42, 0.8);
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            color: #e0e0e0;
+            margin: 1em 0;
+        }}
+        .doc-section a {{
+            color: #60a5fa;
+            text-decoration: none;
+        }}
+        .doc-section a:hover {{
+            text-decoration: underline;
+        }}
+        
+        /* FOOTER */
+        footer {{
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            margin-top: 60px;
+        }}
+        footer p {{ margin: 10px 0; }}
+        footer a {{
+            color: #60a5fa;
+            text-decoration: none;
+        }}
+        footer a:hover {{
+            text-decoration: underline;
         }}
     </style>
 </head>
 <body>
-    <div class=\"wrap\">
-        <header class=\"hero\">
-            <h1>OfficeAgentEnv</h1>
-            <p>Professional environment demo with full project documentation rendered from README.md.</p>
-            <div class=\"chips\">
-                <span class=\"chip\">Running · v1.0.0</span>
-                <span class=\"chip\">OpenEnv Compatible</span>
-                <span class=\"chip\">FastAPI + Docker</span>
+    <!-- HERO -->
+    <section class=\"hero\">
+        <div class=\"container\">
+            <div class=\"hero-content\">
+                <h1>OfficeAgentEnv</h1>
+                <p>A benchmark for training LLMs to solve real-world executive assistant workflows: email triage, meeting scheduling, and constraint-aware decision-making.</p>
+                <div class=\"badge-group\">
+                    <span class=\"badge\">🚀 OpenEnv-Compliant</span>
+                    <span class=\"badge\">⚡ HF TRL Integrated</span>
+                    <span class=\"badge\">🎯 Multi-Task Benchmark</span>
+                </div>
+                <div class=\"cta-buttons\">
+                    <a href=\"#judging-criteria\" class=\"btn btn-primary\">Judging Criteria</a>
+                    <a href=\"/docs\" class=\"btn btn-secondary\" target=\"_blank\">API Docs</a>
+                </div>
             </div>
-            <div class=\"links\">
-                <a href=\"/docs\" target=\"_blank\" rel=\"noopener noreferrer\">Open API Docs</a>
-                <a href=\"/openapi.json\" target=\"_blank\" rel=\"noopener noreferrer\">OpenAPI JSON</a>
-                <a href=\"/tasks\" target=\"_blank\" rel=\"noopener noreferrer\">View Tasks</a>
-                <a href=\"/state\" target=\"_blank\" rel=\"noopener noreferrer\">View State</a>
+        </div>
+    </section>
+
+    <!-- JUDGING CRITERIA -->
+    <section class=\"section\" id=\"judging-criteria\">
+        <div class=\"container\">
+            <h2 class=\"section-title\">🏆 Judging Criteria</h2>
+            <div class=\"criteria-grid\">
+                <div class=\"criteria-card\">
+                    <div class=\"criteria-label\">Primary Evaluation</div>
+                    <h3>Environment Innovation</h3>
+                    <div class=\"criteria-percentage\">40%</div>
+                    <p>Novel, creative, and challenging benchmark that meaningfully tests multi-step agent reasoning, constraint satisfaction, and real-world decision-making.</p>
+                </div>
+                <div class=\"criteria-card\">
+                    <div class=\"criteria-label\">Communication</div>
+                    <h3>Storytelling</h3>
+                    <div class=\"criteria-percentage\">30%</div>
+                    <p>Clear problem statement, engaging demo, and compelling narrative. Evidence of transformative agent behavior improvement post-training.</p>
+                </div>
+                <div class=\"criteria-card\">
+                    <div class=\"criteria-label\">Proof of Progress</div>
+                    <h3>Reward Improvement</h3>
+                    <div class=\"criteria-percentage\">20%</div>
+                    <p>Observable training curves, reward metrics, and before/after behavior comparison proving meaningful model improvement.</p>
+                </div>
+                <div class=\"criteria-card\">
+                    <div class=\"criteria-label\">Technical Rigor</div>
+                    <h3>Pipeline & Rewards</h3>
+                    <div class=\"criteria-percentage\">10%</div>
+                    <p>Coherent reward function, robust training pipeline, and verifiable agent behavior enhancements in the environment.</p>
+                </div>
             </div>
-        </header>
-        <article class=\"doc\">{readme_html}</article>
-    </div>
+        </div>
+    </section>
+
+    <!-- TASKS -->
+    <section class=\"section\">
+        <div class=\"container\">
+            <h2 class=\"section-title\">📋 Available Tasks</h2>
+            <div class=\"tasks-grid\">
+                <div class=\"task-card\">
+                    <div class=\"task-header\">
+                        <span class=\"task-name\">easy</span>
+                        <span class=\"difficulty-badge difficulty-easy\">Easy</span>
+                    </div>
+                    <div class=\"task-stats\">
+                        <div class=\"stat\">
+                            <div class=\"stat-value\">10</div>
+                            <div class=\"stat-label\">Max Steps</div>
+                        </div>
+                        <div class=\"stat\">
+                            <div class=\"stat-value\">~0.70</div>
+                            <div class=\"stat-label\">Baseline</div>
+                        </div>
+                    </div>
+                    <p class=\"task-desc\">Deterministic classification of 5 emails into correct categories (meeting_request, urgent_task, spam, general_query).</p>
+                </div>
+                <div class=\"task-card\">
+                    <div class=\"task-header\">
+                        <span class=\"task-name\">medium</span>
+                        <span class=\"difficulty-badge difficulty-medium\">Medium</span>
+                    </div>
+                    <div class=\"task-stats\">
+                        <div class=\"stat\">
+                            <div class=\"stat-value\">15</div>
+                            <div class=\"stat-label\">Max Steps</div>
+                        </div>
+                        <div class=\"stat\">
+                            <div class=\"stat-value\">~0.50</div>
+                            <div class=\"stat-label\">Baseline</div>
+                        </div>
+                    </div>
+                    <p class=\"task-desc\">Mixed inbox triage with classification + conflict-aware meeting scheduling. Tests planning and constraint reasoning.</p>
+                </div>
+                <div class=\"task-card\">
+                    <div class=\"task-header\">
+                        <span class=\"task-name\">hard</span>
+                        <span class=\"difficulty-badge difficulty-hard\">Hard</span>
+                    </div>
+                    <div class=\"task-stats\">
+                        <div class=\"stat\">
+                            <div class=\"stat-value\">12</div>
+                            <div class=\"stat-label\">Max Steps</div>
+                        </div>
+                        <div class=\"stat\">
+                            <div class=\"stat-value\">~0.38</div>
+                            <div class=\"stat-label\">Baseline</div>
+                        </div>
+                    </div>
+                    <p class=\"task-desc\">Full assistant workflow: classify, reply, schedule, and ignore spam. The ultimate test of multi-step reasoning.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- API QUICK REFERENCE -->
+    <section class=\"section\">
+        <div class=\"container\">
+            <h2 class=\"section-title\">⚙️ API Endpoints</h2>
+            <div class=\"api-section\">
+                <div class=\"api-title\">Quick Reference</div>
+                <div class=\"endpoint\">
+                    <span class=\"endpoint-method method-post\">POST</span>
+                    <span class=\"endpoint-path\">/reset</span>
+                    <div style=\"color: #94a3b8; margin-top: 8px; font-size: 0.9rem;\">Reset environment for task. Request: {{\"task\": \"easy\"|\"medium\"|\"hard\", \"seed\": 42}}</div>
+                </div>
+                <div class=\"endpoint\">
+                    <span class=\"endpoint-method method-post\">POST</span>
+                    <span class=\"endpoint-path\">/step</span>
+                    <div style=\"color: #94a3b8; margin-top: 8px; font-size: 0.9rem;\">Execute one action: classify_email, reply_email, schedule_meeting, or ignore_email</div>
+                </div>
+                <div class=\"endpoint\">
+                    <span class=\"endpoint-method method-get\">GET</span>
+                    <span class=\"endpoint-path\">/state</span>
+                    <div style=\"color: #94a3b8; margin-top: 8px; font-size: 0.9rem;\">Get current environment state (pending_emails, calendar_events, step count)</div>
+                </div>
+                <div class=\"endpoint\">
+                    <span class=\"endpoint-method method-get\">GET</span>
+                    <span class=\"endpoint-path\">/tasks</span>
+                    <div style=\"color: #94a3b8; margin-top: 8px; font-size: 0.9rem;\">List all available tasks with difficulty, max_steps, and descriptions</div>
+                </div>
+                <div class=\"endpoint\">
+                    <span class=\"endpoint-method method-post\">POST</span>
+                    <span class=\"endpoint-path\">/grade</span>
+                    <div style=\"color: #94a3b8; margin-top: 8px; font-size: 0.9rem;\">Score the current episode. Returns score (0-1) for the task</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FULL DOCUMENTATION -->
+    <section class=\"section\">
+        <div class=\"container\">
+            <h2 class=\"section-title\">📚 Full Documentation</h2>
+            <div class=\"doc-section\">
+                {readme_html}
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>OfficeAgentEnv • OpenEnv Benchmark for Executive Assistant Workflows</p>
+        <p>Powered by <a href=\"https://huggingface.co/spaces\" target=\"_blank\">Hugging Face Spaces</a> • <a href=\"/docs\" target=\"_blank\">API Docs</a> • <a href=\"/tasks\" target=\"_blank\">Tasks</a></p>
+    </footer>
 </body>
 </html>
 """
