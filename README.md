@@ -14,20 +14,61 @@ tags: [openenv, office, email, scheduling]
 
 # OfficeAgentEnv
 
-> **An OpenEnv-compliant real-world environment where an AI agent acts as an executive assistant — processing emails, scheduling meetings, replying to queries, and filtering spam.**
+> **OfficeAgentEnv is an OpenEnv-compliant benchmark for executive-assistant workflows: email triage, response drafting, meeting scheduling, and constraint-aware action selection.**
+
+## Live Demo
+
+- Hugging Face Space: https://huggingface.co/spaces/AbhayBadam09/officeagentenv
+
+## Quick Start
+
+### Local environment
+
+```bash
+pip install -r requirements.txt
+uvicorn server.app:app --host 0.0.0.0 --port 7860
+```
+
+### Run inference
+
+```bash
+export HF_TOKEN=your_key
+export MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+export API_BASE_URL=https://router.huggingface.co/v1
+python inference.py
+```
+
+### Docker
+
+```bash
+docker build -t officeagentenv .
+docker run -p 7860:7860 officeagentenv
+```
 
 ---
 
 ## Overview
 
-OfficeAgentEnv simulates the daily workflow of a corporate executive assistant.
-The agent receives an inbox of mixed emails and must intelligently decide for each one:
-- **Classify** it (meeting request / urgent task / spam / general query)
-- **Reply** with a relevant response
-- **Schedule** a conflict-free meeting on the calendar
-- **Ignore** spam
+OfficeAgentEnv simulates the daily workflow of a corporate executive assistant. The agent receives an inbox of mixed emails and must decide, step by step, how to handle each item.
+
+The environment is designed to test whether an agent can:
+
+- classify incoming messages into meaningful categories,
+- draft context-aware replies,
+- schedule meetings without conflicts,
+- ignore spam without dropping important mail.
 
 This models real tasks performed by millions of workers daily, making it a high-value benchmark for evaluating LLM reasoning, planning, and multi-step decision-making.
+
+## Tasks and Results
+
+| Task | Difficulty | Max Steps | Summary | Current Baseline |
+|---|---|---|---|---|
+| easy | Easy | 10 | Deterministic classification of 5 emails | ~0.70 |
+| medium | Medium | 15 | Classification plus conflict-aware scheduling | ~0.50 |
+| hard | Hard | 12 | Full assistant workflow with replies and spam handling | ~0.38 |
+
+These baseline scores are meant as a starting point for comparison. The notebook workflow in this repository is intended to improve them through trajectory collection and supervised fine-tuning.
 
 ---
 
@@ -111,13 +152,6 @@ export API_BASE_URL=https://router.huggingface.co/v1
 python inference.py
 ```
 
-### Docker
-
-```bash
-docker build -t officeagentenv .
-docker run -p 7860:7860 officeagentenv
-```
-
 ### API Endpoints
 
 | Method | Endpoint | Description |
@@ -127,16 +161,6 @@ docker run -p 7860:7860 officeagentenv
 | GET | `/state` | Get current state |
 | GET | `/tasks` | List available tasks |
 | POST | `/grade` | Score current episode |
-
----
-
-## Baseline Scores
-
-| Task | Score | Notes |
-|---|---|---|
-| easy | ~0.70 | Qwen2.5-72B classifies well |
-| medium | ~0.50 | Scheduling requires structured output |
-| hard | ~0.38 | Full workflow challenges frontier models |
 
 ---
 
@@ -162,3 +186,22 @@ OfficeAgentEnv/
 └── server/
     └── app.py            # FastAPI server
 ```
+
+---
+
+## Training Artifacts
+
+The notebook workflow produces the following outputs:
+
+- trained model directory: `/content/officeagent-ft`
+- reward curve image: `/content/reward_curve.png`
+
+The notebook is structured so these artifact paths are printed at the end of the run and remain visible in the output.
+
+---
+
+## Reproducibility Notes
+
+- The environment server runs on port `7860`.
+- The notebook uses environment-driven configuration where possible.
+- The training flow collects trajectories, builds a dataset, fine-tunes the model, and saves artifacts without requiring a separate Python export.
