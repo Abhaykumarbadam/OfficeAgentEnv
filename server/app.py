@@ -522,38 +522,6 @@ def root() -> str:
         </div>
     </section>
 
-    <!-- JUDGING CRITERIA -->
-    <section class=\"section\" id=\"judging-criteria\">
-        <div class=\"container\">
-            <h2 class=\"section-title\">🏆 Judging Criteria</h2>
-            <div class=\"criteria-grid\">
-                <div class=\"criteria-card\">
-                    <div class=\"criteria-label\">Primary Evaluation</div>
-                    <h3>Environment Innovation</h3>
-                    <div class=\"criteria-percentage\">40%</div>
-                    <p>Novel, creative, and challenging benchmark that meaningfully tests multi-step agent reasoning, constraint satisfaction, and real-world decision-making.</p>
-                </div>
-                <div class=\"criteria-card\">
-                    <div class=\"criteria-label\">Communication</div>
-                    <h3>Storytelling</h3>
-                    <div class=\"criteria-percentage\">30%</div>
-                    <p>Clear problem statement, engaging demo, and compelling narrative. Evidence of transformative agent behavior improvement post-training.</p>
-                </div>
-                <div class=\"criteria-card\">
-                    <div class=\"criteria-label\">Proof of Progress</div>
-                    <h3>Reward Improvement</h3>
-                    <div class=\"criteria-percentage\">20%</div>
-                    <p>Observable training curves, reward metrics, and before/after behavior comparison proving meaningful model improvement.</p>
-                </div>
-                <div class=\"criteria-card\">
-                    <div class=\"criteria-label\">Technical Rigor</div>
-                    <h3>Pipeline & Rewards</h3>
-                    <div class=\"criteria-percentage\">10%</div>
-                    <p>Coherent reward function, robust training pipeline, and verifiable agent behavior enhancements in the environment.</p>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- TASKS -->
     <section class=\"section\">
