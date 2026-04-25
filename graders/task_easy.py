@@ -22,16 +22,15 @@ def grade(obs: ExecAssistObservation) -> float:
     Checks processed emails against ground-truth labels.
     Returns score strictly within (0, 1).
     """
-    all_emails = obs.processed_emails + obs.pending_emails
     if not GROUND_TRUTH:
         return strict_unit_interval(0.0)
 
     correct = 0
     total   = len(GROUND_TRUTH)
 
-    for email in all_emails:
+    for email in obs.processed_emails:
         if email.email_id in GROUND_TRUTH:
-            if email.category == GROUND_TRUTH[email.email_id]:
+            if email.resolution == "classify" and email.category == GROUND_TRUTH[email.email_id]:
                 correct += 1
 
     return strict_unit_interval(correct / total)

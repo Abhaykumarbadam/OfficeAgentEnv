@@ -34,7 +34,16 @@ REPORT_SCORE_MAX = 0.9
 
 BENCHMARK = "officeagentenv"
 MAX_STEPS = {"easy": 10, "medium": 15, "hard": 12}
-SUCCESS_THRESHOLD = 0.4
+def get_task_thresholds() -> Dict[str, float]:
+    try:
+        import yaml
+        with open("openenv.yaml", "r") as f:
+            data = yaml.safe_load(f)
+        return {t["id"]: float(t.get("success_threshold", 0.4)) for t in data.get("tasks", [])}
+    except Exception:
+        return {"easy": 0.6, "medium": 0.5, "hard": 0.4}
+
+TASK_THRESHOLDS = get_task_thresholds()
 TASKS = ["easy", "medium", "hard"]
 
 
@@ -47,14 +56,20 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={err}", flush=True)
 
 
-def _strict_score(value: float) -> float:
-    # Keep reported scores bounded in a practical evaluation band.
-    return max(REPORT_SCORE_MIN, min(REPORT_SCORE_MAX, float(value)))
+def _strict_score(task: str, value: float) -> float:
+    # Keep reported scores bounded in a practical evaluation band per-task.
+    ranges = {
+        "easy": (0.1, 0.9),
+        "medium": (0.1, 0.7),
+        "hard": (0.1, 0.5)
+    }
+    task_min, task_max = ranges.get(task, (0.1, 0.9))
+    return max(task_min, min(task_max, float(value)))
 
 
 def log_end(task: str, success: bool, steps: int, score: float, rewards: List[float]) -> None:
     r_str = ",".join(f"{r:.2f}" for r in rewards)
-    safe_score = _strict_score(score)
+    safe_score = _strict_score(task, score)
     print(
         f"[END] task={task} success={str(success).lower()} steps={steps} score={safe_score:.4f} rewards={r_str}",
         flush=True,
@@ -79,8 +94,8 @@ def env_grade(task: str) -> float:
     return r.json()["score"]
 
 
-SYSTEM_PROMPT = textwrap.dedent(
-    """
+def get_system_prompt(task: str) -> str:
+    base_prompt = """
 You are an expert executive assistant AI managing a busy inbox.
 Read each email carefully and choose the MOST APPROPRIATE action.
 
@@ -133,7 +148,12 @@ EXAMPLES OF WRONG ACTIONS (DO NOT DO):
 
 Remember: One email per step. Return ONLY the JSON action.
 """
-).strip()
+    if task == "easy":
+        base_prompt = base_prompt.replace(
+            "⚠️ CRITICAL RULES - DO NOT VIOLATE:",
+            "⚠️ CRITICAL RULES - DO NOT VIOLATE:\n- TASK IS EASY: Prioritize `classify_email`. You are allowed to classify anything if required."
+        )
+    return base_prompt.strip()
 
 
 def build_user_prompt(obs: Dict[str, Any], step: int) -> str:
@@ -393,10 +413,11 @@ def get_action(
 ) -> Dict[str, Any]:
     prompt = build_user_prompt(obs, step)
     try:
+        task_name = str(obs.get("task_name", "")).lower()
         text = get_model_message(
             client,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": get_system_prompt(task_name)},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.0,
@@ -421,14 +442,14 @@ def get_action(
             raise ValueError("Missing required action fields")
             
     except Exception as exc:
-        if ENABLE_DEBUG_LOGS:
-            error_msg = str(exc)[:100]
-            print(f"[DEBUG] JSON parsing failed: {error_msg}. Falling back to heuristic.", flush=True)
+        error_msg = str(exc)[:200]
+        print(f"[ERROR] LLM/JSON parsing failure: {error_msg}. Falling back to heuristic.", flush=True)
         
         # Reward-aware fallback with light exploration.
         pending = obs.get("pending_emails", [])
         if pending:
-            email = pending[0]
+            import random
+            email = random.choice(pending)
             email_id = email.get("email_id")
             subject = email.get("subject", "").lower()
             body = email.get("body", "").lower()
@@ -506,16 +527,27 @@ def run_task(client: Optional[OpenAI], task: str) -> None:
             action = get_action(client, obs, step, policy=policy)
             action_str = json.dumps(action, separators=(",", ":"))
 
-            try:
-                result = env_step(action)
-                obs = result["observation"]
-                reward = float(result.get("reward", 0.0))
-                done = result.get("done", False)
-                error = result.get("info", {}).get("error")
-            except Exception as exc:
+            step_success = False
+            error = None
+            for attempt in range(3):
+                try:
+                    result = env_step(action)
+                    obs = result["observation"]
+                    reward = float(result.get("reward", 0.0))
+                    done = result.get("done", False)
+                    error = result.get("info", {}).get("error")
+                    step_success = True
+                    break
+                except Exception as exc:
+                    import time
+                    print(f"[ERROR] API failure on env_step (attempt {attempt+1}/3): {exc}", flush=True)
+                    time.sleep(1)
+
+            if not step_success:
+                print("[ERROR] API failed after 3 attempts. Proceeding without terminating episode.", flush=True)
                 reward = 0.0
-                done = True
-                error = str(exc)
+                done = False
+                error = "API Error"
 
             rewards.append(reward)
             steps_taken = step
@@ -525,8 +557,8 @@ def run_task(client: Optional[OpenAI], task: str) -> None:
             if done:
                 break
 
-        score = _strict_score(env_grade(task))
-        success = score >= SUCCESS_THRESHOLD
+        score = _strict_score(task, env_grade(task))
+        success = score >= TASK_THRESHOLDS.get(task, 0.4)
 
     except KeyboardInterrupt:
         # Graceful interruption: still emit [END] in finally, without traceback.
