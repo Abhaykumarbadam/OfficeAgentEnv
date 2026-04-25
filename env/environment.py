@@ -5,11 +5,12 @@ Core OpenEnv-compliant environment for OfficeAgentEnv.
 from __future__ import annotations
 
 import uuid
+import random
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from env.email_data import build_calendar_events, get_emails_for_task
+from env.email_data import build_calendar_events, build_random_emails, get_emails_for_task
 from env.models import (
     ActionType,
     CalendarEvent,
@@ -48,6 +49,12 @@ R_BONUS_COMPLETE     =  0.20   # bonus for fully clearing the inbox
 R_SCHEDULE_WRONG_INTENT = -0.15  # scheduling non-meeting emails
 R_REPLY_WRONG_INTENT    = -0.10  # replying to non-query emails
 R_OVER_SCHEDULE_LIMIT   = -0.20  # too many meetings in a single day
+R_ASSIGN_OK             =  0.20
+R_ASSIGN_OVERLOAD       = -0.20
+R_QUERY_STATUS          =  0.05
+R_UPDATE_PROJECT_OK     =  0.20
+R_UPDATE_PROJECT_BAD    = -0.10
+R_DELAYED_IGNORE_PENALTY = -0.25
 
 MAX_STEPS: Dict[str, int] = {
     "easy":   10,
@@ -185,6 +192,19 @@ class ExecAssistEnv:
         self._total_reward: float = 0.0
         self._done: bool = False
         self._last_result: str = ""
+        self.world_state: Dict[str, Any] = {
+            "projects": [
+                {"id": "P1", "status": "on_track", "deadline": 5},
+                {"id": "P2", "status": "delayed", "deadline": 3},
+            ],
+            "team_load": {
+                "engineering": 2,
+                "sales": 1,
+            },
+            "client_satisfaction": 0.75,
+        }
+        self.delayed_events: List[Dict[str, Any]] = []
+        self.debug_mode: bool = False
 
     # ------------------------------------------------------------------
     # OpenEnv interface
@@ -210,16 +230,38 @@ class ExecAssistEnv:
             )
 
         self._step_count += 1
+        delayed_penalty = 0.0
+        remaining_events: List[Dict[str, Any]] = []
+        for event in self.delayed_events:
+            if event.get("trigger_step") == self._step_count:
+                delayed_penalty += float(event.get("penalty", 0.0))
+            else:
+                remaining_events.append(event)
+        self.delayed_events = remaining_events
+        if self.debug_mode and delayed_penalty != 0.0:
+            print(f"Delayed penalty triggered: {delayed_penalty}")
+
+        if random.random() < 0.3:
+            new_email = build_random_emails(n=1, seed=self.seed + self._step_count)
+            if new_email:
+                self._pending.append(new_email[0])
+
         reward, result_msg = self._apply_action(action)
 
         # Per-step shaping penalty
         reward += R_STEP_PENALTY
+        reward += delayed_penalty
 
         # Bonus for fully and (approximately) correctly clearing the inbox.
         # We award this when the inbox becomes empty as a result of this step.
         if not self._pending:
             reward += R_BONUS_COMPLETE
             result_msg += " All emails processed; completion bonus applied."
+
+        base_reward = reward
+        team_load_penalty = 0.05 * sum(self.world_state.get("team_load", {}).values())
+        time_penalty = 0.01 * self._step_count
+        reward = base_reward - time_penalty - team_load_penalty
 
         self._total_reward += reward
         self._last_result = result_msg
@@ -256,6 +298,12 @@ class ExecAssistEnv:
     # ------------------------------------------------------------------
 
     def _apply_action(self, action: ExecAssistAction) -> Tuple[float, str]:
+        if action.action_type == ActionType.QUERY_STATUS:
+            return self._do_query_status(action)
+
+        if action.action_type == ActionType.UPDATE_PROJECT:
+            return self._do_update_project(action)
+
         email = self._find_email(action.email_id)
 
         # Distinguish between invalid ids and duplicate processing attempts.
@@ -282,7 +330,10 @@ class ExecAssistEnv:
         elif action.action_type == ActionType.IGNORE_EMAIL:
             return self._do_ignore(email)
 
-        return (0.0, "Unknown action type.")
+        elif action.action_type == ActionType.ASSIGN_TASK:
+            return self._do_assign_task(email, action)
+
+        return (-0.05, f"Unknown action type '{action.action_type}'.")
 
     # ------------------------------------------------------------------
     # Action handlers
@@ -391,6 +442,13 @@ class ExecAssistEnv:
         intents = classify_intent(email)
         is_spam = intents["is_spam"]
         reward  = R_IGNORE_SPAM if is_spam else R_IGNORE_IMPORTANT
+        if not is_spam:
+            self.delayed_events.append(
+                {
+                    "trigger_step": self._step_count + 2,
+                    "penalty": R_DELAYED_IGNORE_PENALTY,
+                }
+            )
 
         # Ignoring without explicit classification should not grant label credit.
         email.category = EmailCategory.UNKNOWN
@@ -402,6 +460,41 @@ class ExecAssistEnv:
         else:
             msg = f"Ignored important email '{email.email_id}' (may hurt your score)."
         return (reward, msg)
+
+    def _do_assign_task(self, email: Email, action: ExecAssistAction) -> Tuple[float, str]:
+        team = (action.team or "engineering").strip().lower()
+        loads = self.world_state.setdefault("team_load", {})
+        loads[team] = int(loads.get(team, 0)) + 1
+        reward = R_ASSIGN_OVERLOAD if loads[team] > 5 else R_ASSIGN_OK
+
+        email.category = EmailCategory.UNKNOWN
+        email.processed = True
+        email.resolution = "assign"
+        self._move_to_processed(email)
+        return (reward, f"Assigned task from '{email.email_id}' to team '{team}'.")
+
+    def _do_query_status(self, action: ExecAssistAction) -> Tuple[float, str]:
+        _ = self.world_state.get("projects", [])
+        _ = self.world_state.get("client_satisfaction", 0.75)
+        return (R_QUERY_STATUS, "Status queried successfully.")
+
+    def _do_update_project(self, action: ExecAssistAction) -> Tuple[float, str]:
+        project_id = (action.project_id or "").strip()
+        project_status = (action.project_status or "").strip()
+        valid_statuses = {"on_track", "delayed", "blocked", "completed"}
+        if not project_id or not project_status or project_status not in valid_statuses:
+            return (R_UPDATE_PROJECT_BAD, "Invalid project update request.")
+
+        projects = self.world_state.get("projects", [])
+        for proj in projects:
+            if proj.get("id") == project_id:
+                proj["status"] = project_status
+                if project_status == "completed":
+                    self.world_state["client_satisfaction"] = min(
+                        1.0, float(self.world_state.get("client_satisfaction", 0.75)) + 0.05
+                    )
+                return (R_UPDATE_PROJECT_OK, f"Project '{project_id}' updated to '{project_status}'.")
+        return (R_UPDATE_PROJECT_BAD, f"Project '{project_id}' not found.")
 
     # ------------------------------------------------------------------
     # Utilities
@@ -418,6 +511,15 @@ class ExecAssistEnv:
         self._processed.append(email)
 
     def _make_obs_internal(self) -> ExecAssistObservation:
+        projects = self.world_state.get("projects", [])
+        compact_world_state = {
+            "projects": [
+                {"id": p.get("id"), "status": p.get("status"), "deadline": p.get("deadline")}
+                for p in projects
+            ],
+            "team_load": dict(self.world_state.get("team_load", {})),
+            "client_satisfaction": self.world_state.get("client_satisfaction", 0.75),
+        }
         return ExecAssistObservation(
             pending_emails=deepcopy(self._pending),
             processed_emails=deepcopy(self._processed),
@@ -425,6 +527,7 @@ class ExecAssistEnv:
             last_action_result=self._last_result,
             current_step=self._step_count,
             task_name=self.task_name,
+            world_state=compact_world_state,
         )
 
     def _make_obs_public(self) -> ExecAssistObservation:
@@ -442,6 +545,16 @@ class ExecAssistEnv:
         for email in processed:
             email.category = EmailCategory.UNKNOWN
 
+        projects = self.world_state.get("projects", [])
+        compact_world_state = {
+            "projects": [
+                {"id": p.get("id"), "status": p.get("status"), "deadline": p.get("deadline")}
+                for p in projects
+            ],
+            "team_load": dict(self.world_state.get("team_load", {})),
+            "client_satisfaction": self.world_state.get("client_satisfaction", 0.75),
+        }
+
         return ExecAssistObservation(
             pending_emails=pending,
             processed_emails=processed,
@@ -449,4 +562,5 @@ class ExecAssistEnv:
             last_action_result=self._last_result,
             current_step=self._step_count,
             task_name=self.task_name,
+            world_state=compact_world_state,
         )

@@ -23,6 +23,9 @@ class ActionType(str, Enum):
     REPLY_EMAIL      = "reply_email"
     SCHEDULE_MEETING = "schedule_meeting"
     IGNORE_EMAIL     = "ignore_email"
+    ASSIGN_TASK      = "assign_task"
+    QUERY_STATUS     = "query_status"
+    UPDATE_PROJECT   = "update_project"
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +67,10 @@ class ExecAssistAction(BaseModel):
     meeting_start_time:  Optional[str] = None   # "YYYY-MM-DD HH:MM"
     meeting_end_time:    Optional[str] = None
     participants:        Optional[List[str]] = None
+    # for assign_task / update_project
+    team:                Optional[str] = None
+    project_id:          Optional[str] = None
+    project_status:      Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +84,7 @@ class ExecAssistObservation(BaseModel):
     last_action_result: Optional[str] = None
     current_step:       int = 0
     task_name:          str = ""
+    world_state:        Optional[Dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------

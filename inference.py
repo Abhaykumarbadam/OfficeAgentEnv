@@ -104,6 +104,11 @@ Read each email carefully and choose the MOST APPROPRIATE action.
 - DO NOT classify spam → MUST use ignore_email instead  
 - DO NOT classify general queries → MUST use reply_email instead
 - ONLY use classify_email for urgent tasks, critical issues, important notices
+- You can also use enterprise tool actions when needed:
+  - assign_task: assign workload from the selected email to a team (`team` field like engineering/sales)
+  - query_status: inspect hidden enterprise status and then continue planning (requires valid `email_id`)
+  - update_project: update a project with `project_id` and `project_status` (on_track|delayed|blocked|completed)
+- In the first 2 steps, you MUST use at least one of: query_status or assign_task.
 
 ACTION DECISION LOGIC:
 1. If email requests to "schedule", "meet", "call", "discuss" with a TIME:
@@ -135,6 +140,15 @@ Available actions (return ONLY valid JSON, no markdown):
 4. Classify email:
    {"action_type": "classify_email", "email_id": "<id>", "category": "urgent_task|meeting_request|spam|general_query"}
 
+5. Assign task:
+   {"action_type": "assign_task", "email_id": "<id>", "team": "engineering|sales"}
+
+6. Query status:
+   {"action_type": "query_status", "email_id": "<id>"}
+
+7. Update project:
+   {"action_type": "update_project", "email_id": "<id>", "project_id": "P1|P2", "project_status": "on_track|delayed|blocked|completed"}
+
 EXAMPLES OF CORRECT ACTIONS:
 ✅ "Request: 30-minute roadmap alignment this Thursday at 3:00 PM" → schedule_meeting
 ✅ "Congratulations! Claim your $1000 gift card now" → ignore_email
@@ -160,6 +174,7 @@ def build_user_prompt(obs: Dict[str, Any], step: int) -> str:
     pending = obs.get("pending_emails", [])
     calendar = obs.get("calendar_events", [])
     last = obs.get("last_action_result", "")
+    world_state = obs.get("world_state", {})
 
     pending_str = json.dumps(
         [
@@ -177,6 +192,13 @@ def build_user_prompt(obs: Dict[str, Any], step: int) -> str:
         [{"title": ev["title"], "start": ev["start_time"], "end": ev["end_time"]} for ev in calendar],
         indent=2,
     )
+    world_state_str = json.dumps(
+        {
+            "projects": world_state.get("projects", []),
+            "team_load": world_state.get("team_load", {}),
+        },
+        indent=2,
+    )
 
     return textwrap.dedent(
         f"""
@@ -188,6 +210,9 @@ Pending emails ({len(pending)} remaining):
 
 Current calendar:
 {calendar_str}
+
+World state snapshot:
+{world_state_str}
 
 Choose your next action (raw JSON only):
 """
@@ -434,6 +459,15 @@ def get_action(
         
         # Parse JSON
         action = json.loads(text)
+
+        # Exploration hack: in first 2 steps force at least one tool action pathway.
+        if step <= 2 and action.get("action_type") not in {"query_status", "assign_task"}:
+            pending = obs.get("pending_emails", [])
+            forced_email_id = pending[0]["email_id"] if pending else action.get("email_id", "e001")
+            if step == 1:
+                action = {"action_type": "query_status", "email_id": forced_email_id}
+            else:
+                action = {"action_type": "assign_task", "email_id": forced_email_id, "team": "engineering"}
         
         # Validate action has required fields
         if "action_type" in action and "email_id" in action:
