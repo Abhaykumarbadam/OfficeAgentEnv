@@ -33,7 +33,7 @@ R_BAD_REPLY          = -0.10
 R_SCHEDULE_OK        =  0.30
 R_SCHEDULE_CONFLICT  = -0.25
 R_IGNORE_SPAM        =  0.10
-R_IGNORE_IMPORTANT   = -0.15
+R_IGNORE_IMPORTANT   = -0.25
 
 # Per-step penalty encourages shorter solutions
 R_STEP_PENALTY       = -0.02
@@ -45,6 +45,9 @@ R_OUT_OF_HOURS       = -0.20   # meeting outside working hours
 R_TOO_SHORT_MEETING  = -0.10   # meeting shorter than 15 minutes
 R_LOW_QUALITY_REPLY  = -0.10   # reply text is too short / uninformative
 R_BONUS_COMPLETE     =  0.20   # bonus for fully clearing the inbox
+R_SCHEDULE_WRONG_INTENT = -0.15  # scheduling non-meeting emails
+R_REPLY_WRONG_INTENT    = -0.10  # replying to non-query emails
+R_OVER_SCHEDULE_LIMIT   = -0.20  # too many meetings in a single day
 
 MAX_STEPS: Dict[str, int] = {
     "easy":   10,
@@ -139,6 +142,16 @@ def _within_working_hours(start: datetime, end: datetime) -> bool:
     if start.hour < 9 or end.hour > 18:
         return False
     return True
+
+
+def _count_events_for_day(events: List[CalendarEvent], day: datetime) -> int:
+    """Count scheduled events for the same calendar day."""
+    count = 0
+    for ev in events:
+        ev_start = _parse_dt(ev.start_time)
+        if ev_start and ev_start.date() == day.date():
+            count += 1
+    return count
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +315,10 @@ class ExecAssistEnv:
             reward = R_GOOD_REPLY * quality
             msg_detail = "reply accepted."
 
+        if email.category != EmailCategory.GENERAL_QUERY:
+            reward += R_REPLY_WRONG_INTENT
+            msg_detail += " wrong-intent penalty applied."
+
         # Replying without explicit classification should not grant label credit.
         email.category = EmailCategory.UNKNOWN
         email.processed = True
@@ -343,6 +360,17 @@ class ExecAssistEnv:
         if check_schedule_conflict(self._calendar, start, end):
             return (R_SCHEDULE_CONFLICT, f"Scheduling conflict for '{start}' – '{end}'.")
 
+        reward = R_SCHEDULE_OK
+        msg_suffix = ""
+        if email.category != EmailCategory.MEETING_REQUEST:
+            reward += R_SCHEDULE_WRONG_INTENT
+            msg_suffix += " Wrong-intent scheduling penalty applied."
+
+        # Long-horizon constraint: discourage over-scheduling a single day.
+        if _count_events_for_day(self._calendar, parsed_start) >= 4:
+            reward += R_OVER_SCHEDULE_LIMIT
+            msg_suffix += " Daily scheduling limit penalty applied."
+
         new_event = CalendarEvent(
             event_id=str(uuid.uuid4())[:8],
             title=title,
@@ -357,7 +385,7 @@ class ExecAssistEnv:
         email.resolution = "schedule"
         self._move_to_processed(email)
 
-        return (R_SCHEDULE_OK, f"Meeting '{title}' scheduled at {start}.")
+        return (reward, f"Meeting '{title}' scheduled at {start}.{msg_suffix}")
 
     def _do_ignore(self, email: Email) -> Tuple[float, str]:
         intents = classify_intent(email)

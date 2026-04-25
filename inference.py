@@ -420,7 +420,7 @@ def get_action(
                 {"role": "system", "content": get_system_prompt(task_name)},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.0,
+            temperature=0.7,
             max_tokens=300,
         )
         # Clean up common LLM output patterns
@@ -443,66 +443,8 @@ def get_action(
             
     except Exception as exc:
         error_msg = str(exc)[:200]
-        print(f"[ERROR] LLM/JSON parsing failure: {error_msg}. Falling back to heuristic.", flush=True)
-        
-        # Reward-aware fallback with light exploration.
-        pending = obs.get("pending_emails", [])
-        if pending:
-            import random
-            email = random.choice(pending)
-            email_id = email.get("email_id")
-            subject = email.get("subject", "").lower()
-            body = email.get("body", "").lower()
-            text_content = f"{subject} {body}"
-            task_name = str(obs.get("task_name", "")).lower()
-            action_conf = _estimate_action_confidence(text_content)
-
-            chosen_action_type = "classify_email"
-            if policy is not None:
-                scored = {
-                    action: policy.score_action(action, conf)
-                    for action, conf in action_conf.items()
-                }
-                chosen_action_type = max(scored, key=scored.get)
-
-                epsilon = policy.exploration_rate(task_name, step)
-                if random.random() < epsilon:
-                    chosen_action_type = random.choice(list(action_conf.keys()))
-            else:
-                chosen_action_type = max(action_conf, key=action_conf.get)
-
-            if chosen_action_type == "schedule_meeting":
-                preferred_start = _extract_preferred_start_time(text_content)
-                start_time, end_time = _find_conflict_free_slot(
-                    obs.get("calendar_events", []),
-                    preferred_start=preferred_start,
-                    duration_minutes=30,
-                )
-                return {
-                    "action_type": "schedule_meeting",
-                    "email_id": email_id,
-                    "meeting_title": email.get("subject", "Meeting"),
-                    "meeting_start_time": start_time,
-                    "meeting_end_time": end_time,
-                    "participants": [email.get("sender", "unknown@example.com")],
-                }
-            if chosen_action_type == "ignore_email":
-                return {"action_type": "ignore_email", "email_id": email_id}
-            if chosen_action_type == "reply_email":
-                return {
-                    "action_type": "reply_email",
-                    "email_id": email_id,
-                    "reply_text": (
-                        "Thanks for the message. I will review the details and "
-                        "follow up with next steps shortly."
-                    ),
-                }
-            return {
-                "action_type": "classify_email",
-                "email_id": email_id,
-                "category": infer_category_from_email(email),
-            }
-        return {"action_type": "ignore_email", "email_id": "e001"}
+        print(f"[ERROR] LLM/JSON parsing failure: {error_msg}.", flush=True)
+        raise RuntimeError("Model action generation/parsing failed; no heuristic fallback is enabled.") from exc
 
 
 def run_task(client: Optional[OpenAI], task: str) -> None:
