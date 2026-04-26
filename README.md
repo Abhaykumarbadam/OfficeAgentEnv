@@ -43,6 +43,10 @@ OfficeAgentEnv is designed to model this setting in a reproducible way.
 | Efficiency | Lower, time-consuming | Higher, optimized decisions |
 | Outcome | Missed deadlines, unhappy clients | Timely delivery, better satisfaction |
 
+## Why This Is Beyond Traditional RL Benchmarks
+
+Unlike conventional reinforcement learning problems that operate in fixed, well-defined environments (like games or simulations with clear rules and immediate rewards), this application works in a dynamic, enterprise-like setting where conditions constantly change and outcomes are often delayed. Instead of optimizing a single objective, it balances multiple factors such as workload, efficiency, and client satisfaction. The agent also deals with partial information and long-term consequences, making decisions that affect future states rather than only immediate rewards. This makes it much closer to real organizational decision-making than traditional RL setups.
+
 ## Closed-Loop Formulation
 
 At each step:
@@ -199,7 +203,10 @@ docker run -p 7860:7860 officeagentenv
 - `API_BASE_URL`: LLM API endpoint.
 - `MODEL_NAME`: model id to use in inference.
 - `LOCAL_MODEL_PATH`: optional. If unset, `inference.py` auto-loads `./trained_model` when it contains `config.json`, tokenizer files, and weights (`model.safetensors` or sharded / `pytorch_model.bin`).
+- `LOCAL_TOKENIZER_FALLBACK`: optional Hub model id (e.g. for matching `vocab_size`) only if the local `tokenizer.json` cannot be loaded; prefer upgrading `tokenizers` per `requirements.txt` instead.
 - `ENV_URL`: environment server URL (default `http://localhost:7860`).
+
+For local checkpoints, use recent `transformers` / `tokenizers` as in `requirements.txt` so `tokenizer.json` (often exported for `tokenizers>=0.20`) loads correctly.
 
 ## Project Structure
 

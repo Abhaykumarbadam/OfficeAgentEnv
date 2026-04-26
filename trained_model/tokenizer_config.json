@@ -9,7 +9,7 @@
   "pad_token": "</s>",
   "padding_side": "right",
   "sp_model_kwargs": {},
-  "tokenizer_class": "TokenizersBackend",
+  "tokenizer_class": "PreTrainedTokenizerFast",
   "unk_token": "<unk>",
   "use_default_system_prompt": false
 }

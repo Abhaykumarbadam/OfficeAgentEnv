@@ -16,7 +16,9 @@ import httpx
 from dotenv import load_dotenv
 from openai import OpenAI
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+# Avoid pulling torchvision-dependent modules in transformers 5.x for text-only inference.
+os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizerFast
 
 
 load_dotenv()
@@ -94,6 +96,45 @@ def _llama2_instruct_prompt(messages: List[Dict[str, str]]) -> str:
     return f"<s>[INST] {user_text} [/INST]"
 
 
+def _load_local_tokenizer(model_path: str) -> Any:
+    """Load tokenizer; tolerate bad `tokenizer_class` in tokenizer_config.json.
+
+    `tokenizer.json` from recent training stacks often needs `tokenizers>=0.20` (see requirements.txt).
+    If loading still fails, set `LOCAL_TOKENIZER_FALLBACK` to a Hub model id with matching `vocab_size`
+    (e.g. TinyLlama for vocab 32000) only if you know it matches the training tokenizer.
+    """
+    root = Path(model_path)
+    tokenizer_json = root / "tokenizer.json"
+    try:
+        return AutoTokenizer.from_pretrained(model_path, use_fast=True, trust_remote_code=True)
+    except Exception as first:
+        if not tokenizer_json.is_file():
+            raise first
+        try:
+            return PreTrainedTokenizerFast.from_pretrained(model_path, trust_remote_code=True)
+        except Exception as second:
+            try:
+                return PreTrainedTokenizerFast(tokenizer_file=str(tokenizer_json))
+            except Exception as third:
+                fallback = os.getenv("LOCAL_TOKENIZER_FALLBACK", "").strip()
+                if not fallback:
+                    raise RuntimeError(
+                        "Could not load tokenizer from checkpoint. The packaged tokenizer.json may need "
+                        "a newer `tokenizers` (>=0.20): run `pip install -U 'tokenizers>=0.20' 'transformers>=4.40'`. "
+                        f"Original error: {first}"
+                    ) from third
+                tok_fb = AutoTokenizer.from_pretrained(fallback, use_fast=True, trust_remote_code=True)
+                with (root / "config.json").open(encoding="utf-8") as f:
+                    cfg = json.load(f)
+                v_cfg = int(cfg.get("vocab_size", 0))
+                v_tok = int(getattr(tok_fb, "vocab_size", 0) or 0)
+                if v_cfg and v_tok and v_cfg != v_tok:
+                    raise RuntimeError(
+                        f"LOCAL_TOKENIZER_FALLBACK {fallback} vocab_size={v_tok} != model config {v_cfg}"
+                    ) from third
+                return tok_fb
+
+
 def _load_config_torch_dtype(config_path: Path) -> "torch.dtype":
     with config_path.open(encoding="utf-8") as f:
         cfg = json.load(f)
@@ -131,13 +172,13 @@ class LocalLLM:
         elif dtype == torch.bfloat16 and not torch.cuda.is_bf16_supported():
             dtype = torch.float16
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, use_fast=True)
+        self.tokenizer = _load_local_tokenizer(self.model_path)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_path,
-            torch_dtype=dtype,
+            dtype=dtype,
             low_cpu_mem_usage=True,
         )
         self.model.to(self.device)

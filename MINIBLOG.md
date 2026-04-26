@@ -25,6 +25,10 @@ The following contrast summarizes the shift from conventional, ad hoc operations
 | Efficiency | Lower, time-consuming | Higher, optimized decisions |
 | Outcome | Missed deadlines, unhappy clients | Timely delivery, better satisfaction |
 
+## Why This Is Beyond Traditional RL Benchmarks
+
+Unlike conventional reinforcement learning problems that operate in fixed, well-defined environments (like games or simulations with clear rules and immediate rewards), this application works in a dynamic, enterprise-like setting where conditions constantly change and outcomes are often delayed. Instead of optimizing a single objective, it balances multiple factors such as workload, efficiency, and client satisfaction. The agent also deals with partial information and long-term consequences, making decisions that affect future states rather than only immediate rewards. This makes it much closer to real organizational decision-making than traditional RL setups.
+
 ![Closed-Loop RL System Overview](./Overview.png)
 
 ## Problem Setting
