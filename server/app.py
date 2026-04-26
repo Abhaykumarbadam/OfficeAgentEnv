@@ -67,6 +67,10 @@ _active_obs: ExecAssistObservation | None = None
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 README_PATH = PROJECT_ROOT / "README.md"
 
+# Must not use str.format() on the landing HTML: embedded JavaScript contains `{` / `}`
+# which breaks format() and causes 500 errors on `/`.
+_README_HTML_PLACEHOLDER = "__OFFICEAGENT_README_HTML__"
+
 
 def _strip_front_matter(text: str) -> str:
     if text.startswith("---\n"):
@@ -122,7 +126,8 @@ class GradeRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 def root() -> str:
         readme_html = _render_readme_to_html()
-        return """
+        return (
+        """
 <!doctype html>
 <html lang=\"en\">
 <head>
@@ -623,7 +628,7 @@ def root() -> str:
         <div class=\"container\">
             <h2 class=\"section-title\">📚 Full Documentation</h2>
             <div class=\"doc-section\">
-                {readme_html}
+                """ + _README_HTML_PLACEHOLDER + """
             </div>
         </div>
     </section>
@@ -784,7 +789,8 @@ def root() -> str:
     </footer>
 </body>
 </html>
-""".format(readme_html=readme_html)
+        """
+        ).replace(_README_HTML_PLACEHOLDER, readme_html)
 
 
 @app.post("/reset")
