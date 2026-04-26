@@ -632,156 +632,156 @@ def root() -> str:
             </div>
         </div>
     </section>
-    <!-- INTERACTIVE DEMO SECTION -->
-    <section class="section">
-        <div class="container">
-            <h2 class="section-title">🎮 Interactive Demo</h2>
+    # <!-- INTERACTIVE DEMO SECTION -->
+    # <section class="section">
+    #     <div class="container">
+    #         <h2 class="section-title">🎮 Interactive Demo</h2>
             
-            <!-- Email Demo -->
-            <div class="api-section" style="margin-bottom: 30px;">
-                <div class="api-title">Email Classification Demo</div>
-                <p style="color: #a0aec0; margin-bottom: 20px;">Type an email and see what action the agent should take:</p>
+    #         <!-- Email Demo -->
+    #         <div class="api-section" style="margin-bottom: 30px;">
+    #             <div class="api-title">Email Classification Demo</div>
+    #             <p style="color: #a0aec0; margin-bottom: 20px;">Type an email and see what action the agent should take:</p>
                 
-                <div style="background: rgba(15, 23, 42, 0.8); padding: 20px; border-radius: 8px; margin-bottom: 15px;">
-                    <input type="text" id="demo-subject" placeholder="Email Subject" 
-                           style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;">
-                    <textarea id="demo-body" placeholder="Email Body" rows="4"
-                              style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;"></textarea>
-                    <button onclick="classifyEmail()" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                        Classify Email
-                    </button>
-                </div>
+    #             <div style="background: rgba(15, 23, 42, 0.8); padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+    #                 <input type="text" id="demo-subject" placeholder="Email Subject" 
+    #                        style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;">
+    #                 <textarea id="demo-body" placeholder="Email Body" rows="4"
+    #                           style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;"></textarea>
+    #                 <button onclick="classifyEmail()" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+    #                     Classify Email
+    #                 </button>
+    #             </div>
                 
-                <div id="demo-result" style="margin-top: 15px;"></div>
+    #             <div id="demo-result" style="margin-top: 15px;"></div>
                 
-                <script>
-                function classifyEmail() {
-                    const subject = document.getElementById("demo-subject").value;
-                    const body = document.getElementById("demo-body").value;
-                    const resultDiv = document.getElementById("demo-result");
+    #             <script>
+    #             function classifyEmail() {
+    #                 const subject = document.getElementById("demo-subject").value;
+    #                 const body = document.getElementById("demo-body").value;
+    #                 const resultDiv = document.getElementById("demo-result");
                     
-                    if (!subject || !body) {
-                        resultDiv.innerHTML = '<div style="color: #f87171;">Please fill in both subject and body</div>';
-                        return;
-                    }
+    #                 if (!subject || !body) {
+    #                     resultDiv.innerHTML = '<div style="color: #f87171;">Please fill in both subject and body</div>';
+    #                     return;
+    #                 }
                     
-                    const text = (subject + " " + body).toLowerCase();
-                    let category = "general_query";
-                    let confidence = "60%";
-                    let action = "reply_email";
+    #                 const text = (subject + " " + body).toLowerCase();
+    #                 let category = "general_query";
+    #                 let confidence = "60%";
+    #                 let action = "reply_email";
                     
-                    if (text.includes("meeting") || text.includes("schedule") || text.includes("calendar")) {
-                        category = "meeting_request";
-                        action = "schedule_meeting";
-                        confidence = "95%";
-                    } else if (text.includes("urgent") || text.includes("critical") || text.includes("asap")) {
-                        category = "urgent_task";
-                        action = "classify_email";
-                        confidence = "92%";
-                    } else if (text.includes("free") || text.includes("offer") || text.includes("discount") || text.includes("prize")) {
-                        category = "spam";
-                        action = "ignore_email";
-                        confidence = "88%";
-                    }
+    #                 if (text.includes("meeting") || text.includes("schedule") || text.includes("calendar")) {
+    #                     category = "meeting_request";
+    #                     action = "schedule_meeting";
+    #                     confidence = "95%";
+    #                 } else if (text.includes("urgent") || text.includes("critical") || text.includes("asap")) {
+    #                     category = "urgent_task";
+    #                     action = "classify_email";
+    #                     confidence = "92%";
+    #                 } else if (text.includes("free") || text.includes("offer") || text.includes("discount") || text.includes("prize")) {
+    #                     category = "spam";
+    #                     action = "ignore_email";
+    #                     confidence = "88%";
+    #                 }
                     
-                    resultDiv.innerHTML = \`
-                        <div style="background: rgba(59, 130, 246, 0.15); border: 1px solid #60a5fa; border-radius: 8px; padding: 15px;">
-                            <p style="color: #60a5fa; font-weight: 600; margin: 0 0 10px 0;">📊 Classification Result</p>
-                            <p style="margin: 5px 0;">📁 Category: <span style="color: #60a5fa; font-weight: 600;">${{category}}</span></p>
-                            <p style="margin: 5px 0;">🎯 Action: <span style="color: #86efac; font-weight: 600;">${{action}}</span></p>
-                            <p style="margin: 5px 0;">📈 Confidence: <span style="color: #fbbf24; font-weight: 600;">${{confidence}}</span></p>
-                        </div>
-                    \`;
-                }
-                </script>
-            </div>
+    #                 resultDiv.innerHTML = \`
+    #                     <div style="background: rgba(59, 130, 246, 0.15); border: 1px solid #60a5fa; border-radius: 8px; padding: 15px;">
+    #                         <p style="color: #60a5fa; font-weight: 600; margin: 0 0 10px 0;">📊 Classification Result</p>
+    #                         <p style="margin: 5px 0;">📁 Category: <span style="color: #60a5fa; font-weight: 600;">${{category}}</span></p>
+    #                         <p style="margin: 5px 0;">🎯 Action: <span style="color: #86efac; font-weight: 600;">${{action}}</span></p>
+    #                         <p style="margin: 5px 0;">📈 Confidence: <span style="color: #fbbf24; font-weight: 600;">${{confidence}}</span></p>
+    #                     </div>
+    #                 \`;
+    #             }
+    #             </script>
+    #         </div>
             
-            <!-- Conflict Detector -->
-            <div class="api-section">
-                <div class="api-title">⚡ Conflict Detection Demo</div>
-                <p style="color: #a0aec0; margin-bottom: 20px;">Try to schedule a meeting and see if there's a conflict:</p>
+    #         <!-- Conflict Detector -->
+    #         <div class="api-section">
+    #             <div class="api-title">⚡ Conflict Detection Demo</div>
+    #             <p style="color: #a0aec0; margin-bottom: 20px;">Try to schedule a meeting and see if there's a conflict:</p>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div>
-                        <p style="color: #60a5fa; font-weight: 600; margin-bottom: 10px;">Current Calendar</p>
-                        <div style="background: rgba(15, 23, 42, 0.8); padding: 15px; border-radius: 8px;">
-                            <div style="background: rgba(34, 197, 94, 0.2); border-left: 3px solid #86efac; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
-                                ✅ 09:00-10:00 Team Stand-up
-                            </div>
-                            <div style="background: rgba(34, 197, 94, 0.2); border-left: 3px solid #86efac; padding: 10px; border-radius: 4px;">
-                                ✅ 14:00-15:30 Client Call
-                            </div>
-                        </div>
-                    </div>
+    #             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    #                 <div>
+    #                     <p style="color: #60a5fa; font-weight: 600; margin-bottom: 10px;">Current Calendar</p>
+    #                     <div style="background: rgba(15, 23, 42, 0.8); padding: 15px; border-radius: 8px;">
+    #                         <div style="background: rgba(34, 197, 94, 0.2); border-left: 3px solid #86efac; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
+    #                             ✅ 09:00-10:00 Team Stand-up
+    #                         </div>
+    #                         <div style="background: rgba(34, 197, 94, 0.2); border-left: 3px solid #86efac; padding: 10px; border-radius: 4px;">
+    #                             ✅ 14:00-15:30 Client Call
+    #                         </div>
+    #                     </div>
+    #                 </div>
                     
-                    <div>
-                        <p style="color: #60a5fa; font-weight: 600; margin-bottom: 10px;">Try Scheduling</p>
-                        <div style="background: rgba(15, 23, 42, 0.8); padding: 15px; border-radius: 8px;">
-                            <input type="time" id="meet-start" value="10:00" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;">
-                            <input type="time" id="meet-end" value="11:00" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;">
-                            <button onclick="checkConflict()" style="width: 100%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                                Check Conflict
-                            </button>
-                        </div>
-                    </div>
-                </div>
+    #                 <div>
+    #                     <p style="color: #60a5fa; font-weight: 600; margin-bottom: 10px;">Try Scheduling</p>
+    #                     <div style="background: rgba(15, 23, 42, 0.8); padding: 15px; border-radius: 8px;">
+    #                         <input type="time" id="meet-start" value="10:00" style="width: 100%; padding: 8px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;">
+    #                         <input type="time" id="meet-end" value="11:00" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #64748b; background: #1e293b; color: #e0e0e0;">
+    #                         <button onclick="checkConflict()" style="width: 100%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">
+    #                             Check Conflict
+    #                         </button>
+    #                     </div>
+    #                 </div>
+    #             </div>
                 
-                <div id="conflict-result" style="margin-top: 15px;"></div>
+    #             <div id="conflict-result" style="margin-top: 15px;"></div>
                 
-                <script>
-                function checkConflict() {
-                    const start = document.getElementById("meet-start").value;
-                    const end = document.getElementById("meet-end").value;
-                    const resultDiv = document.getElementById("conflict-result");
+    #             <script>
+    #             function checkConflict() {
+    #                 const start = document.getElementById("meet-start").value;
+    #                 const end = document.getElementById("meet-end").value;
+    #                 const resultDiv = document.getElementById("conflict-result");
                     
-                    const events = [
-                        {start: "09:00", end: "10:00"},
-                        {start: "14:00", end: "15:30"}
-                    ];
+    #                 const events = [
+    #                     {start: "09:00", end: "10:00"},
+    #                     {start: "14:00", end: "15:30"}
+    #                 ];
                     
-                    const [sh, sm] = start.split(":").map(Number);
-                    const [eh, em] = end.split(":").map(Number);
-                    const startMins = sh * 60 + sm;
-                    const endMins = eh * 60 + em;
+    #                 const [sh, sm] = start.split(":").map(Number);
+    #                 const [eh, em] = end.split(":").map(Number);
+    #                 const startMins = sh * 60 + sm;
+    #                 const endMins = eh * 60 + em;
                     
-                    let hasConflict = false;
-                    let conflictWith = "";
+    #                 let hasConflict = false;
+    #                 let conflictWith = "";
                     
-                    for (let event of events) {
-                        const [es_h, es_m] = event.start.split(":").map(Number);
-                        const [ee_h, ee_m] = event.end.split(":").map(Number);
-                        const evStart = es_h * 60 + es_m;
-                        const evEnd = ee_h * 60 + ee_m;
+    #                 for (let event of events) {
+    #                     const [es_h, es_m] = event.start.split(":").map(Number);
+    #                     const [ee_h, ee_m] = event.end.split(":").map(Number);
+    #                     const evStart = es_h * 60 + es_m;
+    #                     const evEnd = ee_h * 60 + ee_m;
                         
-                        if (startMins < evEnd && endMins > evStart) {
-                            hasConflict = true;
-                            conflictWith = event.start + "-" + event.end;
-                            break;
-                        }
-                    }
+    #                     if (startMins < evEnd && endMins > evStart) {
+    #                         hasConflict = true;
+    #                         conflictWith = event.start + "-" + event.end;
+    #                         break;
+    #                     }
+    #                 }
                     
-                    if (hasConflict) {
-                        resultDiv.innerHTML = \`
-                            <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid #fca5a5; border-radius: 8px; padding: 15px;">
-                                <p style="color: #fca5a5; font-weight: 600; margin: 0;">❌ CONFLICT DETECTED!</p>
-                                <p style="color: #a0aec0; margin: 5px 0;">Your meeting ${{start}}-${{end}} overlaps with existing event ${{conflictWith}}</p>
-                                <p style="color: #94a3b8; margin: 5px 0; font-size: 0.9rem;">Reward: -0.25 (scheduling conflict penalty)</p>
-                            </div>
-                        \`;
-                    } else {
-                        resultDiv.innerHTML = \`
-                            <div style="background: rgba(34, 197, 94, 0.2); border: 1px solid #86efac; border-radius: 8px; padding: 15px;">
-                                <p style="color: #86efac; font-weight: 600; margin: 0;">✅ NO CONFLICT</p>
-                                <p style="color: #a0aec0; margin: 5px 0;">Meeting can be scheduled from ${{start}} to ${{end}}</p>
-                                <p style="color: #94a3b8; margin: 5px 0; font-size: 0.9rem;">Reward: +0.30 (conflict-free scheduling)</p>
-                            </div>
-                        \`;
-                    }
-                }
-                </script>
-            </div>
-        </div>
-    </section>
+    #                 if (hasConflict) {
+    #                     resultDiv.innerHTML = \`
+    #                         <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid #fca5a5; border-radius: 8px; padding: 15px;">
+    #                             <p style="color: #fca5a5; font-weight: 600; margin: 0;">❌ CONFLICT DETECTED!</p>
+    #                             <p style="color: #a0aec0; margin: 5px 0;">Your meeting ${{start}}-${{end}} overlaps with existing event ${{conflictWith}}</p>
+    #                             <p style="color: #94a3b8; margin: 5px 0; font-size: 0.9rem;">Reward: -0.25 (scheduling conflict penalty)</p>
+    #                         </div>
+    #                     \`;
+    #                 } else {
+    #                     resultDiv.innerHTML = \`
+    #                         <div style="background: rgba(34, 197, 94, 0.2); border: 1px solid #86efac; border-radius: 8px; padding: 15px;">
+    #                             <p style="color: #86efac; font-weight: 600; margin: 0;">✅ NO CONFLICT</p>
+    #                             <p style="color: #a0aec0; margin: 5px 0;">Meeting can be scheduled from ${{start}} to ${{end}}</p>
+    #                             <p style="color: #94a3b8; margin: 5px 0; font-size: 0.9rem;">Reward: +0.30 (conflict-free scheduling)</p>
+    #                         </div>
+    #                     \`;
+    #                 }
+    #             }
+    #             </script>
+    #         </div>
+    #     </div>
+    # </section>
     <!-- FOOTER -->
     <footer>
         <p>OfficeAgentEnv • OpenEnv Benchmark for Executive Assistant Workflows</p>
