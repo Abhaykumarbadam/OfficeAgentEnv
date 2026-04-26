@@ -18,7 +18,7 @@ tags:
 tasks:
   - id: easy
     name: easy
-    description: "Classify 5 deterministic emails into correct categories."
+    description: "Classification-focused task over deterministic emails (classify_email policy path)."
     difficulty: easy
     max_steps: 10
     success_threshold: 0.6
@@ -51,7 +51,7 @@ action_space:
   properties:
     action_type:
       type: string
-      enum: [classify_email, reply_email, schedule_meeting, ignore_email]
+      enum: [classify_email, reply_email, schedule_meeting, ignore_email, assign_task, query_status, update_project]
 
     email_id:
       type: string
@@ -76,6 +76,16 @@ action_space:
       type: array
       items:
         type: string
+
+    team:
+      type: string
+
+    project_id:
+      type: string
+
+    project_status:
+      type: string
+      enum: [on_track, delayed, blocked, completed]
 
   required:
     - action_type
@@ -111,15 +121,10 @@ observation_space:
 reward:
   type: float
   description: >
-    Dense reward signal encouraging correct multi-step behavior:
-    +0.30 correct classification
-    +0.30 conflict-free meeting scheduling
-    +0.20 relevant reply
-    +0.10 correct spam ignore
-    -0.20 incorrect classification
-    -0.25 scheduling conflict
-    -0.15 ignoring important email
-    -0.02 step penalty
+    Event-based reward:
+    r_t = w_s*e_success + w_q*e_quality + w_e*e_efficiency - w_v*e_violation - w_d*e_delayed.
+    Event terms are bounded in [0,1], weights are calibrated non-negative constants,
+    and per-step reward is clipped to [-1, 1] for stability.
 
 endpoints:
   reset: "POST /reset"

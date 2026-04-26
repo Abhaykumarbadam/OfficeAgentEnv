@@ -23,38 +23,45 @@ from env.models import (
 
 
 # ---------------------------------------------------------------------------
-# Reward constants
+# Event-based reward parameters
 # ---------------------------------------------------------------------------
 
-# Core dense rewards
-R_CORRECT_CLASSIFY   =  0.30
-R_WRONG_CLASSIFY     = -0.20
-R_GOOD_REPLY         =  0.20
-R_BAD_REPLY          = -0.10
-R_SCHEDULE_OK        =  0.30
-R_SCHEDULE_CONFLICT  = -0.25
-R_IGNORE_SPAM        =  0.10
-R_IGNORE_IMPORTANT   = -0.25
+# Reward is modeled as:
+# r_t = w_s * e_success + w_q * e_quality + w_e * e_eff - w_v * e_violation - w_d * e_delayed
+# where each event term is binary/bounded and final reward is clipped to [-1, 1].
+W_SUCCESS   = 0.55
+W_QUALITY   = 0.25
+W_EFFICIENCY = 0.20
+W_VIOLATION = 0.70
+W_DELAYED   = 0.60
 
-# Per-step penalty encourages shorter solutions
-R_STEP_PENALTY       = -0.02
 
-# Additional nuanced penalties / bonuses
-R_INVALID_EMAIL      = -0.10   # invalid email id
-R_DUPLICATE_ACTION   = -0.10   # acting again on an already processed email
-R_OUT_OF_HOURS       = -0.20   # meeting outside working hours
-R_TOO_SHORT_MEETING  = -0.10   # meeting shorter than 15 minutes
-R_LOW_QUALITY_REPLY  = -0.10   # reply text is too short / uninformative
-R_BONUS_COMPLETE     =  0.20   # bonus for fully clearing the inbox
-R_SCHEDULE_WRONG_INTENT = -0.15  # scheduling non-meeting emails
-R_REPLY_WRONG_INTENT    = -0.10  # replying to non-query emails
-R_OVER_SCHEDULE_LIMIT   = -0.20  # too many meetings in a single day
-R_ASSIGN_OK             =  0.20
-R_ASSIGN_OVERLOAD       = -0.20
-R_QUERY_STATUS          =  0.05
-R_UPDATE_PROJECT_OK     =  0.20
-R_UPDATE_PROJECT_BAD    = -0.10
-R_DELAYED_IGNORE_PENALTY = -0.25
+def event_reward(
+    *,
+    success: float = 0.0,
+    quality: float = 0.0,
+    efficiency: float = 0.0,
+    violation: float = 0.0,
+    delayed: float = 0.0,
+) -> float:
+    raw = (
+        W_SUCCESS * max(0.0, min(1.0, success))
+        + W_QUALITY * max(0.0, min(1.0, quality))
+        + W_EFFICIENCY * max(0.0, min(1.0, efficiency))
+        - W_VIOLATION * max(0.0, min(1.0, violation))
+        - W_DELAYED * max(0.0, min(1.0, delayed))
+    )
+    return max(-1.0, min(1.0, raw))
+
+
+def normalized_episode_score(total_reward: float, max_steps: int) -> float:
+    """Map episode return to a fair normalized score in [0, 100]."""
+    # With per-step clipping in [-1, 1], theoretical episode bounds are [-max_steps, max_steps].
+    g_min = float(-max_steps)
+    g_max = float(max_steps)
+    denom = max(g_max - g_min, 1e-8)
+    score = 100.0 * ((total_reward - g_min) / denom)
+    return max(0.0, min(100.0, score))
 
 MAX_STEPS: Dict[str, int] = {
     "easy":   10,
@@ -230,16 +237,16 @@ class ExecAssistEnv:
             )
 
         self._step_count += 1
-        delayed_penalty = 0.0
+        delayed_signal = 0.0
         remaining_events: List[Dict[str, Any]] = []
         for event in self.delayed_events:
             if event.get("trigger_step") == self._step_count:
-                delayed_penalty += float(event.get("penalty", 0.0))
+                delayed_signal += float(event.get("delayed", 0.0))
             else:
                 remaining_events.append(event)
         self.delayed_events = remaining_events
-        if self.debug_mode and delayed_penalty != 0.0:
-            print(f"Delayed penalty triggered: {delayed_penalty}")
+        if self.debug_mode and delayed_signal != 0.0:
+            print(f"Delayed penalty event triggered: {delayed_signal}")
 
         if random.random() < 0.3:
             new_email = build_random_emails(n=1, seed=self.seed + self._step_count)
@@ -248,14 +255,15 @@ class ExecAssistEnv:
 
         reward, result_msg = self._apply_action(action)
 
-        # Per-step shaping penalty
-        reward += R_STEP_PENALTY
-        reward += delayed_penalty
+        # Per-step shaping: small efficiency term for shorter trajectories.
+        step_efficiency = max(0.0, 1.0 - min(self._step_count / max(self._max_steps, 1), 1.0))
+        reward += event_reward(efficiency=0.15 * step_efficiency)
+        reward += event_reward(delayed=delayed_signal)
 
         # Bonus for fully and (approximately) correctly clearing the inbox.
         # We award this when the inbox becomes empty as a result of this step.
         if not self._pending:
-            reward += R_BONUS_COMPLETE
+            reward += event_reward(success=0.4, quality=0.4)
             result_msg += " All emails processed; completion bonus applied."
 
         base_reward = reward
@@ -277,6 +285,9 @@ class ExecAssistEnv:
             info={
                 "step": self._step_count,
                 "total_reward": round(self._total_reward, 4),
+                "normalized_score_0_100": round(
+                    normalized_episode_score(self._total_reward, self._max_steps), 2
+                ),
                 "emails_remaining": len(self._pending),
             },
         )
@@ -298,6 +309,12 @@ class ExecAssistEnv:
     # ------------------------------------------------------------------
 
     def _apply_action(self, action: ExecAssistAction) -> Tuple[float, str]:
+        if self.task_name == "easy" and action.action_type != ActionType.CLASSIFY_EMAIL:
+            return (
+                event_reward(violation=0.55),
+                "Easy task allows classify_email only; non-classification action penalized.",
+            )
+
         if action.action_type == ActionType.QUERY_STATUS:
             return self._do_query_status(action)
 
@@ -310,11 +327,11 @@ class ExecAssistEnv:
         if email is None:
             if any(e.email_id == action.email_id for e in self._processed):
                 return (
-                    R_DUPLICATE_ACTION,
+                    event_reward(violation=0.35),
                     f"Email '{action.email_id}' was already processed; duplicate action penalized.",
                 )
             return (
-                R_INVALID_EMAIL,
+                event_reward(violation=0.30),
                 f"Email '{action.email_id}' not found in pending inbox.",
             )
 
@@ -341,10 +358,14 @@ class ExecAssistEnv:
 
     def _do_classify(self, email: Email, action: ExecAssistAction) -> Tuple[float, str]:
         if action.category is None:
-            return (-0.05, "classify_email requires a 'category' field.")
+            return (event_reward(violation=0.20), "classify_email requires a 'category' field.")
 
         correct = email.category == action.category
-        reward  = R_CORRECT_CLASSIFY if correct else R_WRONG_CLASSIFY
+        reward = (
+            event_reward(success=1.0, quality=1.0, efficiency=0.4)
+            if correct
+            else event_reward(violation=0.45)
+        )
 
         email.category  = action.category   # agent's classification persists
         email.processed = True
@@ -356,18 +377,18 @@ class ExecAssistEnv:
 
     def _do_reply(self, email: Email, action: ExecAssistAction) -> Tuple[float, str]:
         if not action.reply_text:
-            return (R_LOW_QUALITY_REPLY, "reply_email requires non-empty 'reply_text'.")
+            return (event_reward(violation=0.25), "reply_email requires non-empty 'reply_text'.")
 
         quality = _reply_quality(action.reply_text, email)
         if quality <= 0.2:
-            reward = R_LOW_QUALITY_REPLY
+            reward = event_reward(violation=0.20)
             msg_detail = "low-quality reply (too short or generic)."
         else:
-            reward = R_GOOD_REPLY * quality
+            reward = event_reward(success=0.7, quality=quality, efficiency=0.2)
             msg_detail = "reply accepted."
 
         if email.category != EmailCategory.GENERAL_QUERY:
-            reward += R_REPLY_WRONG_INTENT
+            reward += event_reward(violation=0.20)
             msg_detail += " wrong-intent penalty applied."
 
         # Replying without explicit classification should not grant label credit.
@@ -387,39 +408,42 @@ class ExecAssistEnv:
         title = action.meeting_title or email.subject
 
         if not start or not end:
-            return (-0.10, "schedule_meeting requires 'meeting_start_time' and 'meeting_end_time'.")
+            return (
+                event_reward(violation=0.25),
+                "schedule_meeting requires 'meeting_start_time' and 'meeting_end_time'.",
+            )
 
         parsed_start = _parse_dt(start)
         parsed_end = _parse_dt(end)
         if not parsed_start or not parsed_end:
-            return (-0.10, "Invalid datetime format for meeting_start_time or meeting_end_time.")
+            return (event_reward(violation=0.25), "Invalid datetime format for meeting_start_time or meeting_end_time.")
 
         # Enforce working hours (09:00–18:00)
         if not _within_working_hours(parsed_start, parsed_end):
             return (
-                R_OUT_OF_HOURS,
+                event_reward(violation=0.35),
                 "Requested meeting time is outside working hours (09:00–18:00).",
             )
 
         # Enforce minimum duration of 15 minutes
         if (parsed_end - parsed_start).total_seconds() < 15 * 60:
             return (
-                R_TOO_SHORT_MEETING,
+                event_reward(violation=0.25),
                 "Requested meeting is shorter than 15 minutes.",
             )
 
         if check_schedule_conflict(self._calendar, start, end):
-            return (R_SCHEDULE_CONFLICT, f"Scheduling conflict for '{start}' – '{end}'.")
+            return (event_reward(violation=0.40), f"Scheduling conflict for '{start}' – '{end}'.")
 
-        reward = R_SCHEDULE_OK
+        reward = event_reward(success=1.0, quality=0.9, efficiency=0.3)
         msg_suffix = ""
         if email.category != EmailCategory.MEETING_REQUEST:
-            reward += R_SCHEDULE_WRONG_INTENT
+            reward += event_reward(violation=0.22)
             msg_suffix += " Wrong-intent scheduling penalty applied."
 
         # Long-horizon constraint: discourage over-scheduling a single day.
         if _count_events_for_day(self._calendar, parsed_start) >= 4:
-            reward += R_OVER_SCHEDULE_LIMIT
+            reward += event_reward(violation=0.30)
             msg_suffix += " Daily scheduling limit penalty applied."
 
         new_event = CalendarEvent(
@@ -441,12 +465,12 @@ class ExecAssistEnv:
     def _do_ignore(self, email: Email) -> Tuple[float, str]:
         intents = classify_intent(email)
         is_spam = intents["is_spam"]
-        reward  = R_IGNORE_SPAM if is_spam else R_IGNORE_IMPORTANT
+        reward = event_reward(success=0.6, quality=0.8, efficiency=0.3) if is_spam else event_reward(violation=0.35)
         if not is_spam:
             self.delayed_events.append(
                 {
                     "trigger_step": self._step_count + 2,
-                    "penalty": R_DELAYED_IGNORE_PENALTY,
+                    "delayed": 0.45,
                 }
             )
 
@@ -465,7 +489,10 @@ class ExecAssistEnv:
         team = (action.team or "engineering").strip().lower()
         loads = self.world_state.setdefault("team_load", {})
         loads[team] = int(loads.get(team, 0)) + 1
-        reward = R_ASSIGN_OVERLOAD if loads[team] > 5 else R_ASSIGN_OK
+        if loads[team] > 5:
+            reward = event_reward(violation=0.35)
+        else:
+            reward = event_reward(success=0.6, quality=0.6, efficiency=0.4)
 
         email.category = EmailCategory.UNKNOWN
         email.processed = True
@@ -476,14 +503,14 @@ class ExecAssistEnv:
     def _do_query_status(self, action: ExecAssistAction) -> Tuple[float, str]:
         _ = self.world_state.get("projects", [])
         _ = self.world_state.get("client_satisfaction", 0.75)
-        return (R_QUERY_STATUS, "Status queried successfully.")
+        return (event_reward(efficiency=0.2), "Status queried successfully.")
 
     def _do_update_project(self, action: ExecAssistAction) -> Tuple[float, str]:
         project_id = (action.project_id or "").strip()
         project_status = (action.project_status or "").strip()
         valid_statuses = {"on_track", "delayed", "blocked", "completed"}
         if not project_id or not project_status or project_status not in valid_statuses:
-            return (R_UPDATE_PROJECT_BAD, "Invalid project update request.")
+            return (event_reward(violation=0.25), "Invalid project update request.")
 
         projects = self.world_state.get("projects", [])
         for proj in projects:
@@ -493,8 +520,11 @@ class ExecAssistEnv:
                     self.world_state["client_satisfaction"] = min(
                         1.0, float(self.world_state.get("client_satisfaction", 0.75)) + 0.05
                     )
-                return (R_UPDATE_PROJECT_OK, f"Project '{project_id}' updated to '{project_status}'.")
-        return (R_UPDATE_PROJECT_BAD, f"Project '{project_id}' not found.")
+                return (
+                    event_reward(success=0.8, quality=0.7, efficiency=0.3),
+                    f"Project '{project_id}' updated to '{project_status}'.",
+                )
+        return (event_reward(violation=0.20), f"Project '{project_id}' not found.")
 
     # ------------------------------------------------------------------
     # Utilities

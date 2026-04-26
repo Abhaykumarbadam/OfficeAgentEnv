@@ -33,8 +33,8 @@ import graders.task_hard   as grader_hard
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="OfficeAgentEnv",
-    description="OpenEnv-compliant executive assistant environment.",
+    title="Enterprise Agents",
+    description="OpenEnv-compliant closed-loop enterprise agent environment.",
     version="1.0.0",
 )
 
@@ -81,7 +81,7 @@ def _render_readme_to_html() -> str:
         readme_text = README_PATH.read_text(encoding="utf-8")
         readme_text = _strip_front_matter(readme_text)
     except Exception:
-        readme_text = "# OfficeAgentEnv\n\nREADME.md not found."
+        readme_text = "# Enterprise Agents\n\nREADME.md not found."
 
     try:
         md = importlib.import_module("markdown")
@@ -128,7 +128,7 @@ def root() -> str:
 <head>
     <meta charset=\"UTF-8\" />
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
-    <title>OfficeAgentEnv - AI Executive Assistant Benchmark</title>
+    <title>Enterprise Agents - Closed-Loop OpenEnv Benchmark</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         html {{ scroll-behavior: smooth; }}
@@ -507,15 +507,15 @@ def root() -> str:
     <section class=\"hero\">
         <div class=\"container\">
             <div class=\"hero-content\">
-                <h1>OfficeAgentEnv</h1>
-                <p>A benchmark for training LLMs to solve real-world executive assistant workflows: email triage, meeting scheduling, and constraint-aware decision-making.</p>
+                <h1>Enterprise Agents</h1>
+                <p>A closed-loop OpenEnv benchmark for training LLM agents on enterprise workflows with partial observability, delayed consequences, and multi-objective rewards.</p>
+                <p style="max-width: 760px; color: #94a3b8; margin-top: 6px;">Unlike workflow demos that follow fixed scripts, this environment keeps changing as the agent acts, so the model is pushed to make practical decisions under pressure instead of just producing fluent answers.</p>
                 <div class=\"badge-group\">
                     <span class=\"badge\">🚀 OpenEnv-Compliant</span>
                     <span class=\"badge\">⚡ HF TRL Integrated</span>
-                    <span class=\"badge\">🎯 Multi-Task Benchmark</span>
+                    <span class=\"badge\">🏢 Enterprise Workflows</span>
                 </div>
                 <div class=\"cta-buttons\">
-                    <a href=\"#judging-criteria\" class=\"btn btn-primary\">Judging Criteria</a>
                     <a href=\"/docs\" class=\"btn btn-secondary\" target=\"_blank\">API Docs</a>
                 </div>
             </div>
