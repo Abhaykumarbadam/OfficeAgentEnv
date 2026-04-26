@@ -8,6 +8,23 @@ This project introduces a closed-loop reinforcement learning framework in which 
 
 What makes this work different from many assistant-style projects is that the world does not stay static while the model reasons: every decision reshapes the next state, so the agent is trained to handle consequences, trade-offs, and uncertainty the way real teams experience them.
 
+## Manual Workflows vs. RL-Trained Agent
+
+The following contrast summarizes the shift from conventional, ad hoc operations to a policy learned through environment interaction:
+
+| Aspect | Before Application (Old Way) | After Application (RL Agent) |
+| --- | --- | --- |
+| Decision Making | Manual, based on guesswork | Intelligent, data-driven |
+| Task Assignment | Based on habit or intuition | Based on workload & future impact |
+| Email Handling | Checked manually | Automatically analyzed |
+| Planning Style | Short-term, reactive | Long-term, strategic |
+| Workload Distribution | Unbalanced (overload/idle) | Balanced automatically |
+| Error Handling | Repeated human mistakes | Learns from mistakes (reward/penalty) |
+| Adaptability | Static (no improvement) | Continuously improves over time |
+| Problem Handling | Fixes issues after they occur | Prevents issues before they occur |
+| Efficiency | Lower, time-consuming | Higher, optimized decisions |
+| Outcome | Missed deadlines, unhappy clients | Timely delivery, better satisfaction |
+
 ![Closed-Loop RL System Overview](./Overview.png)
 
 ## Problem Setting

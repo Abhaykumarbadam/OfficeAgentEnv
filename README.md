@@ -28,6 +28,21 @@ Most static benchmarks measure isolated language capability. Real enterprise exe
 
 OfficeAgentEnv is designed to model this setting in a reproducible way.
 
+## Before vs. After: Manual Workflows and RL Agents
+
+| Aspect | Before Application (Old Way) | After Application (RL Agent) |
+| --- | --- | --- |
+| Decision Making | Manual, based on guesswork | Intelligent, data-driven |
+| Task Assignment | Based on habit or intuition | Based on workload & future impact |
+| Email Handling | Checked manually | Automatically analyzed |
+| Planning Style | Short-term, reactive | Long-term, strategic |
+| Workload Distribution | Unbalanced (overload/idle) | Balanced automatically |
+| Error Handling | Repeated human mistakes | Learns from mistakes (reward/penalty) |
+| Adaptability | Static (no improvement) | Continuously improves over time |
+| Problem Handling | Fixes issues after they occur | Prevents issues before they occur |
+| Efficiency | Lower, time-consuming | Higher, optimized decisions |
+| Outcome | Missed deadlines, unhappy clients | Timely delivery, better satisfaction |
+
 ## Closed-Loop Formulation
 
 At each step:
@@ -183,6 +198,7 @@ docker run -p 7860:7860 officeagentenv
 - `HF_TOKEN` or `OPENAI_API_KEY`: LLM provider key.
 - `API_BASE_URL`: LLM API endpoint.
 - `MODEL_NAME`: model id to use in inference.
+- `LOCAL_MODEL_PATH`: optional. If unset, `inference.py` auto-loads `./trained_model` when it contains `config.json`, tokenizer files, and weights (`model.safetensors` or sharded / `pytorch_model.bin`).
 - `ENV_URL`: environment server URL (default `http://localhost:7860`).
 
 ## Project Structure

@@ -9,6 +9,7 @@ import random
 import re
 import textwrap
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -27,7 +28,6 @@ INJECTED_API_BASE_URL = os.environ.get("API_BASE_URL")
 API_KEY = INJECTED_API_KEY or os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
 API_BASE_URL = INJECTED_API_BASE_URL or os.getenv("API_BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
-LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", "").strip()
 ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 ENABLE_DEBUG_LOGS = os.getenv("ENABLE_DEBUG_LOGS", "").strip().lower() in {"1", "true", "yes", "on"}
 DEFAULT_MODEL_NAME = "heuristic-fallback"
@@ -50,28 +50,124 @@ TASK_THRESHOLDS = get_task_thresholds()
 TASKS = ["easy", "medium", "hard"]
 
 
+def _dir_has_model_weights(d: Path) -> bool:
+    if (d / "model.safetensors").is_file():
+        return True
+    if (d / "model.safetensors.index.json").is_file():
+        return True
+    if (d / "pytorch_model.bin").is_file():
+        return True
+    for _ in d.glob("pytorch_model-*.bin"):
+        return True
+    for _ in d.glob("model-*.safetensors"):
+        return True
+    return False
+
+
+def resolve_local_model_path() -> str:
+    """Return directory to load when LOCAL_MODEL_PATH is set, else ./trained_model if valid.
+
+    Expects at least: config.json, tokenizer files (e.g. tokenizer.json), and weights
+    (model.safetensors, or sharded .safetensors / pytorch_model*.bin).
+    """
+    explicit = os.getenv("LOCAL_MODEL_PATH", "").strip()
+    if explicit:
+        return explicit
+    default = Path(__file__).resolve().parent / "trained_model"
+    if not default.is_dir():
+        return ""
+    if not (default / "config.json").is_file() or not _dir_has_model_weights(default):
+        return ""
+    return str(default)
+
+
+# Resolved after load_dotenv(): use repo ./trained_model when present and valid.
+LOCAL_MODEL_PATH = resolve_local_model_path()
+
+
+def _llama2_instruct_prompt(messages: List[Dict[str, str]]) -> str:
+    """Llama-2 / similar instruct format when tokenizer has no chat_template."""
+    system = "\n\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "system")
+    user_text = "\n\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "user")
+    if system:
+        return f"<s>[INST] <<SYS>>\n{system}\n<</SYS>>\n\n{user_text} [/INST]"
+    return f"<s>[INST] {user_text} [/INST]"
+
+
+def _load_config_torch_dtype(config_path: Path) -> "torch.dtype":
+    with config_path.open(encoding="utf-8") as f:
+        cfg = json.load(f)
+    name = (cfg.get("torch_dtype") or cfg.get("dtype") or "float32")
+    if isinstance(name, str):
+        name = name.replace("torch.", "")
+    mapping: Dict[str, torch.dtype] = {
+        "bfloat16": torch.bfloat16,
+        "float16": torch.float16,
+        "float32": torch.float32,
+    }
+    return mapping.get(str(name), torch.float32)
+
+
 class LocalLLM:
     """Lightweight local text generation wrapper for trained checkpoints."""
 
     def __init__(self, model_path: str):
-        self.model_path = model_path
+        self.model_path = os.path.abspath(model_path)
+        root = Path(self.model_path)
+        if not root.is_dir():
+            raise FileNotFoundError(f"Local model path is not a directory: {self.model_path}")
+        if not (root / "config.json").is_file():
+            raise FileNotFoundError(f"Missing config.json under {self.model_path}")
+        if not _dir_has_model_weights(root):
+            raise FileNotFoundError(
+                f"No model weights found in {self.model_path} "
+                "(expected model.safetensors, sharded .safetensors, or pytorch_model.bin)."
+            )
+
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+        dtype = _load_config_torch_dtype(root / "config.json")
+        if self.device == "cpu":
+            dtype = torch.float32
+        elif dtype == torch.bfloat16 and not torch.cuda.is_bf16_supported():
+            dtype = torch.float16
+
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, use_fast=True)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(model_path)
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_path,
+            torch_dtype=dtype,
+            low_cpu_mem_usage=True,
+        )
         self.model.to(self.device)
         self.model.eval()
 
-    def generate(self, messages: List[Dict[str, str]], *, max_tokens: int = 300, temperature: float = 0.0) -> str:
-        prompt = ""
-        for m in messages:
-            role = m.get("role", "user").upper()
-            content = m.get("content", "")
-            prompt += f"{role}:\n{content}\n\n"
-        prompt += "ASSISTANT:\n"
+        mlen = int(getattr(self.tokenizer, "model_max_length", 2048) or 2048)
+        if mlen > 1_000_000:
+            mlen = 2048
+        self._max_input_ids = min(2048, mlen)
 
-        inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048).to(self.device)
+    def _messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
+        tok = self.tokenizer
+        template = getattr(tok, "chat_template", None)
+        if template:
+            return tok.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        return _llama2_instruct_prompt(messages)
+
+    def generate(self, messages: List[Dict[str, str]], *, max_tokens: int = 300, temperature: float = 0.0) -> str:
+        prompt = self._messages_to_prompt(messages)
+
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self._max_input_ids,
+        ).to(self.device)
         do_sample = temperature > 0.0
         with torch.no_grad():
             outputs = self.model.generate(
@@ -81,10 +177,11 @@ class LocalLLM:
                 do_sample=do_sample,
                 temperature=max(temperature, 1e-5),
                 top_p=0.95,
-                pad_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
-        generated_tokens = outputs[0][inputs["input_ids"].shape[-1]:]
+        input_len = inputs["input_ids"].shape[-1]
+        generated_tokens = outputs[0][input_len:]
         text = self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
         if not text:
             raise ValueError("Local model returned empty content.")
@@ -677,7 +774,16 @@ def main() -> None:
         try:
             local_llm = LocalLLM(LOCAL_MODEL_PATH)
             model_label = f"local:{os.path.basename(os.path.abspath(LOCAL_MODEL_PATH))}"
-        except Exception:
+            print(f"[INFO] Loaded local model from {LOCAL_MODEL_PATH}", flush=True)
+        except Exception as exc:
+            print(
+                f"[WARN] Could not load local model from {LOCAL_MODEL_PATH}: {exc}",
+                flush=True,
+            )
+            if ENABLE_DEBUG_LOGS:
+                import traceback
+
+                traceback.print_exc()
             local_llm = None
 
     if use_llm:
