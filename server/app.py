@@ -790,7 +790,7 @@ def root() -> str:
 </body>
 </html>
         """
-        ).replace(_README_HTML_PLACEHOLDER, readme_html)
+        ).replace("{{", "{").replace("}}", "}").replace(_README_HTML_PLACEHOLDER, readme_html)
 
 
 @app.post("/reset")
